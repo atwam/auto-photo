@@ -7,11 +7,13 @@ pub mod draw;
 pub mod geometry;
 pub mod imgops;
 pub mod layout;
+pub mod matting;
 pub mod models;
 pub mod pipeline;
 pub mod segment;
 pub mod spec;
 pub mod tone;
+pub mod whitebalance;
 
 pub use models::{ModelBytes, Models};
 

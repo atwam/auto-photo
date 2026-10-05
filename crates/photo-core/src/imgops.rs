@@ -63,20 +63,10 @@ impl Affine {
         let (s, c) = angle.sin_cos();
         let (a, b, d, e) = (c * scale, -s * scale, s * scale, c * scale);
         let (hx, hy) = (dst_w * 0.5, dst_h * 0.5);
-        Affine {
-            a,
-            b,
-            c: center.x - a * hx - b * hy,
-            d,
-            e,
-            f: center.y - d * hx - e * hy,
-        }
+        Affine { a, b, c: center.x - a * hx - b * hy, d, e, f: center.y - d * hx - e * hy }
     }
     pub fn apply(&self, p: Point) -> Point {
-        Point::new(
-            self.a * p.x + self.b * p.y + self.c,
-            self.d * p.x + self.e * p.y + self.f,
-        )
+        Point::new(self.a * p.x + self.b * p.y + self.c, self.d * p.x + self.e * p.y + self.f)
     }
     pub fn scale(&self) -> f32 {
         (self.a * self.e - self.b * self.d).abs().sqrt()
@@ -84,14 +74,7 @@ impl Affine {
     pub fn inverse(&self) -> Affine {
         let det = self.a * self.e - self.b * self.d;
         let (a, b, d, e) = (self.e / det, -self.b / det, -self.d / det, self.a / det);
-        Affine {
-            a,
-            b,
-            c: -(a * self.c + b * self.f),
-            d,
-            e,
-            f: -(d * self.c + e * self.f),
-        }
+        Affine { a, b, c: -(a * self.c + b * self.f), d, e, f: -(d * self.c + e * self.f) }
     }
 }
 
@@ -167,21 +150,13 @@ pub fn to_u8(img: &Rgb32FImage) -> RgbImage {
 
 #[inline]
 pub fn srgb_to_linear(v: f32) -> f32 {
-    if v <= 0.04045 {
-        v / 12.92
-    } else {
-        ((v + 0.055) / 1.055).powf(2.4)
-    }
+    if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
 }
 
 #[inline]
 pub fn linear_to_srgb(v: f32) -> f32 {
     let v = v.max(0.0);
-    if v <= 0.003_130_8 {
-        v * 12.92
-    } else {
-        1.055 * v.powf(1.0 / 2.4) - 0.055
-    }
+    if v <= 0.003_130_8 { v * 12.92 } else { 1.055 * v.powf(1.0 / 2.4) - 0.055 }
 }
 
 /// Relative luminance of a linear RGB triple.
@@ -204,12 +179,7 @@ pub fn warp_resampled(src: &Rgb32FImage, w: u32, h: u32, m: &Affine) -> Rgb32FIm
         let mut acc = [0.0f32; 3];
         for dy in 0..k {
             for dx in 0..k {
-                let p = src
-                    .get_pixel(
-                        (x * k + dx).min(src.width() - 1),
-                        (y * k + dy).min(src.height() - 1),
-                    )
-                    .0;
+                let p = src.get_pixel((x * k + dx).min(src.width() - 1), (y * k + dy).min(src.height() - 1)).0;
                 for i in 0..3 {
                     acc[i] += p[i];
                 }
@@ -218,13 +188,6 @@ pub fn warp_resampled(src: &Rgb32FImage, w: u32, h: u32, m: &Affine) -> Rgb32FIm
         px.0 = acc.map(|v| v * norm);
     }
     let kf = k as f32;
-    let m = Affine {
-        a: m.a / kf,
-        b: m.b / kf,
-        c: m.c / kf,
-        d: m.d / kf,
-        e: m.e / kf,
-        f: m.f / kf,
-    };
+    let m = Affine { a: m.a / kf, b: m.b / kf, c: m.c / kf, d: m.d / kf, e: m.e / kf, f: m.f / kf };
     warp(&small, w, h, &m)
 }

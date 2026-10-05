@@ -1,7 +1,7 @@
 // Runs the wasm pipeline off the main thread. Photos never leave the device:
 // the only network requests are for the model files, cached after first use.
 import init, { Engine, Portrait, specs } from "./pkg/photo_wasm.js";
-import type { Req, Res } from "./protocol";
+import type { Detection, Req, Res } from "./protocol";
 
 const MODEL_CACHE = "auto-photo-models-v1";
 const MAX_SIDE = 2400;
@@ -48,6 +48,24 @@ async function fetchModel(name: string, onProgress: (loaded: number) => void): P
   return bytes;
 }
 
+/** Brightness of the face's central area, overall and per side (for lighting hints). */
+function faceLight(data: Uint8ClampedArray, w: number, h: number, f: Detection) {
+  const { x, y, w: bw, h: bh } = f.bbox;
+  const x0 = Math.max(0, Math.round(x + bw * 0.15)), x1 = Math.min(w, Math.round(x + bw * 0.85));
+  const y0 = Math.max(0, Math.round(y + bh * 0.25)), y1 = Math.min(h, Math.round(y + bh * 0.8));
+  const mid = (x0 + x1) / 2;
+  let l = 0, nl = 0, r = 0, nr = 0;
+  for (let yy = y0; yy < y1; yy += 2) {
+    for (let xx = x0; xx < x1; xx += 2) {
+      const i = (yy * w + xx) * 4;
+      const v = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+      if (xx < mid) { l += v; nl++; } else { r += v; nr++; }
+    }
+  }
+  if (!nl || !nr) return null;
+  return { mean: (l + r) / (nl + nr), left: l / nl, right: r / nr };
+}
+
 async function handle(req: Req) {
   switch (req.type) {
     case "init": {
@@ -64,6 +82,19 @@ async function handle(req: Req) {
       );
       engine = new Engine(bytes[0], bytes[1], bytes[2]);
       post({ type: "ready", specs: specs() });
+      break;
+    }
+    case "detect": {
+      if (!engine) throw new Error("engine not ready");
+      const { bitmap } = req;
+      const { width: w, height: h } = bitmap;
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const data = ctx.getImageData(0, 0, w, h).data;
+      const faces = engine.detect(new Uint8Array(data.buffer), w, h) as Detection[];
+      post({ type: "detected", id: req.id, faces, width: w, height: h, light: faces[0] ? faceLight(data, w, h, faces[0]) : null });
       break;
     }
     case "locate": {

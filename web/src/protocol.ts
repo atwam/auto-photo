@@ -9,6 +9,8 @@ export interface Adjust {
 
 export interface Tone {
   white_balance: number;
+  /** -1 cooler … 1 warmer, on top of the automatic white balance. */
+  temperature: number;
   auto_exposure: number;
   brightness_ev: number;
   background: number;
@@ -79,8 +81,25 @@ export interface RenderInfo {
   transform: [number, number, number, number, number, number];
 }
 
+/** A face found by the fast detector, in the coordinates of the sent frame. */
+export interface Detection {
+  bbox: { x: number; y: number; w: number; h: number };
+  score: number;
+  /** Image-left eye, image-right eye, nose, image-left mouth, image-right mouth. */
+  kps: Pt[];
+}
+
+export interface LiveFaces {
+  faces: Detection[];
+  width: number;
+  height: number;
+  /** Mean luma (0..1) of the main face, and of its image-left / image-right halves. */
+  light: { mean: number; left: number; right: number } | null;
+}
+
 export type Req =
   | { type: "init" }
+  | { type: "detect"; id: number; bitmap: ImageBitmap }
   | { type: "locate"; bitmap: ImageBitmap }
   | { type: "segment"; width: number; height: number }
   | { type: "render"; id: number; spec: string; opts: RenderOpts }
@@ -98,6 +117,7 @@ export type Req =
 export type Res =
   | { type: "progress"; loaded: number }
   | { type: "ready"; specs: Spec[] }
+  | ({ type: "detected"; id: number } & LiveFaces)
   | { type: "located"; face: Face; width: number; height: number }
   | { type: "segmented"; face: Face; matte: Uint8Array }
   | { type: "rendered"; id: number; width: number; height: number; rgba: Uint8Array; info: RenderInfo }

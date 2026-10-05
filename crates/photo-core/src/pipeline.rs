@@ -9,6 +9,7 @@ use crate::models::{MATTE_H, MATTE_W, Models};
 use crate::segment::{Matte, matte};
 use crate::spec::{HeadTop, SPECS, Spec};
 use crate::tone::{self, ToneParams, ToneReport};
+use crate::whitebalance::{self, Illuminant};
 use image::Rgb32FImage;
 
 /// Faces smaller than this fraction of the main face's area are ignored
@@ -32,6 +33,8 @@ pub struct Analysis {
     pub landmarks: Landmarks,
     pub head: Head,
     pub matte: Matte,
+    /// Light colour estimated on the original photo.
+    pub illuminant: Illuminant,
 }
 
 pub fn analyze(models: &Models, img: &Rgb32FImage) -> Result<Analysis, Error> {
@@ -43,52 +46,29 @@ pub fn locate(models: &Models, img: &Rgb32FImage) -> Result<Located, Error> {
     let dets = detect_faces(models, img)?;
     let main = dets.first().ok_or(Error::NoFace)?;
     let area = |d: &Detection| d.bbox.w * d.bbox.h;
-    let significant = dets
-        .iter()
-        .filter(|d| area(d) >= area(main) * SECONDARY_FACE_AREA)
-        .count();
+    let significant = dets.iter().filter(|d| area(d) >= area(main) * SECONDARY_FACE_AREA).count();
     if significant > 1 {
         return Err(Error::MultipleFaces(significant));
     }
     let landmarks = face_landmarks(models, img, main)?;
     let head = Head::from_landmarks(&landmarks);
-    Ok(Located {
-        detection: main.clone(),
-        landmarks,
-        head,
-    })
+    Ok(Located { detection: main.clone(), landmarks, head })
 }
 
 /// Step 2: matte the person over a region larger than any spec's frame, and
 /// refine the head top with it.
 pub fn segment(models: &Models, img: &Rgb32FImage, loc: Located) -> Result<Analysis, Error> {
-    let Located {
-        detection,
-        landmarks,
-        mut head,
-    } = loc;
+    let Located { detection, landmarks, mut head } = loc;
     let mut spec = SPECS[0].clone();
     spec.head_top = HeadTop::Skull;
     let p = place(&head, &spec, Adjust::default(), img.width(), img.height());
-    let center = p
-        .mm_to_src
-        .apply(Point::new(spec.width_mm * 0.5, spec.height_mm * 0.5));
+    let center = p.mm_to_src.apply(Point::new(spec.width_mm * 0.5, spec.height_mm * 0.5));
     let roi_h = spec.height_mm * MATTE_COVER * p.src_px_per_mm;
-    let roi = Affine::crop(
-        center,
-        MATTE_W as f32,
-        MATTE_H as f32,
-        roi_h / MATTE_H as f32,
-        head.roll,
-    );
+    let roi = Affine::crop(center, MATTE_W as f32, MATTE_H as f32, roi_h / MATTE_H as f32, head.roll);
     let matte = matte(models, img, roi)?;
     head.refine_with_matte(&matte);
-    Ok(Analysis {
-        detection,
-        landmarks,
-        head,
-        matte,
-    })
+    let illuminant = whitebalance::estimate(img, &landmarks, &matte);
+    Ok(Analysis { detection, landmarks, head, matte, illuminant })
 }
 
 /// One rendered, corrected and checked photo.
@@ -111,16 +91,7 @@ pub fn produce(
 ) -> Produced {
     let placement = place(&a.head, spec, adjust, img.width(), img.height());
     let frame = tone::render_frame(img, a, &placement, dpi / 25.4);
-    let (photo, tone) = tone::apply(
-        &frame,
-        params.background_color.unwrap_or(spec.background),
-        params,
-    );
+    let (photo, tone) = tone::apply(&frame, params.background_color.unwrap_or(spec.background), params);
     let report = checks::run(spec, a, &placement, &frame, &photo, params);
-    Produced {
-        photo,
-        placement,
-        tone,
-        report,
-    }
+    Produced { photo, placement, tone, report }
 }

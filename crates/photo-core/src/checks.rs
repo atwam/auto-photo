@@ -33,12 +33,7 @@ pub struct Report {
 }
 
 fn check(id: &'static str, label: &'static str, status: Status, detail: String) -> Check {
-    Check {
-        id,
-        label,
-        status,
-        detail,
-    }
+    Check { id, label, status, detail }
 }
 
 fn grade(v: f32, warn: f32, fail: f32) -> Status {
@@ -68,11 +63,7 @@ pub fn run(
     c.push(check(
         "head_size",
         "Head size",
-        if p.head_mm >= lo && p.head_mm <= hi {
-            Status::Pass
-        } else {
-            Status::Fail
-        },
+        if p.head_mm >= lo && p.head_mm <= hi { Status::Pass } else { Status::Fail },
         format!("{:.1} mm chin to crown (allowed {lo}–{hi} mm)", p.head_mm),
     ));
     let (elo, ehi) = (spec.eyes_min_mm, spec.eyes_max_mm);
@@ -80,20 +71,11 @@ pub fn run(
     c.push(check(
         "eye_line",
         "Eye position",
-        if e >= elo && e <= ehi {
-            Status::Pass
-        } else {
-            Status::Fail
-        },
+        if e >= elo && e <= ehi { Status::Pass } else { Status::Fail },
         format!("eyes {e:.1} mm above bottom edge (allowed {elo}–{ehi} mm)"),
     ));
     let off = p.center_offset_mm.abs();
-    c.push(check(
-        "centered",
-        "Head centred",
-        grade(off, 1.0, 2.0),
-        format!("{off:.1} mm off centre"),
-    ));
+    c.push(check("centered", "Head centred", grade(off, 1.0, 2.0), format!("{off:.1} mm off centre")));
 
     // Pose: yaw from eye-to-cheek asymmetry; roll is corrected so only report it.
     let dr = pts[mesh::R_IRIS].dist(pts[mesh::CHEEK_R]);
@@ -103,28 +85,13 @@ pub fn run(
         "facing",
         "Facing the camera",
         grade(yaw, 0.08, 0.15),
-        format!(
-            "asymmetry {:.0}%, tilt corrected by {:.1}°",
-            yaw * 100.0,
-            a.head.roll.to_degrees()
-        ),
+        format!("asymmetry {:.0}%, tilt corrected by {:.1}°", yaw * 100.0, a.head.roll.to_degrees()),
     ));
 
     // Eyes open: lid opening relative to eye width.
-    let ear =
-        |up: usize, low: usize, a: usize, b: usize| pts[up].dist(pts[low]) / pts[a].dist(pts[b]);
-    let ear_r = ear(
-        mesh::R_EYE_UPPER,
-        mesh::R_EYE_LOWER,
-        mesh::R_EYE_OUTER,
-        mesh::R_EYE_INNER,
-    );
-    let ear_l = ear(
-        mesh::L_EYE_UPPER,
-        mesh::L_EYE_LOWER,
-        mesh::L_EYE_OUTER,
-        mesh::L_EYE_INNER,
-    );
+    let ear = |up: usize, low: usize, a: usize, b: usize| pts[up].dist(pts[low]) / pts[a].dist(pts[b]);
+    let ear_r = ear(mesh::R_EYE_UPPER, mesh::R_EYE_LOWER, mesh::R_EYE_OUTER, mesh::R_EYE_INNER);
+    let ear_l = ear(mesh::L_EYE_UPPER, mesh::L_EYE_LOWER, mesh::L_EYE_OUTER, mesh::L_EYE_INNER);
     let ear_min = ear_r.min(ear_l);
     c.push(check(
         "eyes_open",
@@ -150,10 +117,7 @@ pub fn run(
     let (status, detail) = if gap > 0.12 {
         (Status::Fail, "mouth open".to_string())
     } else if lift > 0.08 || gap > 0.06 {
-        (
-            Status::Fail,
-            "smiling; keep a neutral expression".to_string(),
-        )
+        (Status::Fail, "smiling; keep a neutral expression".to_string())
     } else if lift > 0.04 {
         (Status::Warn, "slight smile".to_string())
     } else {
@@ -162,17 +126,15 @@ pub fn run(
     c.push(check("expression", "Neutral expression", status, detail));
 
     // Background, measured on the original pixels.
-    let bg: Vec<usize> = (0..original.alpha.len())
-        .filter(|&i| original.alpha[i] < 0.03 && !original.outside[i])
-        .collect();
+    let bg: Vec<usize> =
+        (0..original.alpha.len()).filter(|&i| original.alpha[i] < 0.03 && !original.outside[i]).collect();
     let raw = original.linear.as_raw();
     let lum = |i: usize| luma([raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]]);
     let mut status = Status::Pass;
     let mut detail = String::from("plain");
     if bg.len() > original.alpha.len() / 50 {
         let mean = bg.iter().map(|&i| lum(i)).sum::<f32>() / bg.len() as f32;
-        let sd =
-            (bg.iter().map(|&i| (lum(i) - mean).powi(2)).sum::<f32>() / bg.len() as f32).sqrt();
+        let sd = (bg.iter().map(|&i| (lum(i) - mean).powi(2)).sum::<f32>() / bg.len() as f32).sqrt();
         let rel = sd / mean.max(1e-3);
         status = grade(rel, 0.12, 0.3);
         detail = format!("original variation {:.0}%", rel * 100.0);
@@ -192,21 +154,15 @@ pub fn run(
 
     // Exposure on the output: clipped or very dark skin.
     let out = output.as_raw();
-    let skin_l: Vec<f32> = original
-        .skin
-        .iter()
-        .map(|&i| luma([out[i * 3], out[i * 3 + 1], out[i * 3 + 2]].map(srgb_to_linear)))
-        .collect();
+    let skin_l: Vec<f32> =
+        original.skin.iter().map(|&i| luma([out[i * 3], out[i * 3 + 1], out[i * 3 + 2]].map(srgb_to_linear))).collect();
     if !skin_l.is_empty() {
         let clipped = skin_l.iter().filter(|&&l| l > 0.95).count() as f32 / skin_l.len() as f32;
         let mut s = skin_l.clone();
         s.sort_by(f32::total_cmp);
         let median = s[s.len() / 2];
         let (status, detail) = if clipped > 0.05 {
-            (
-                Status::Fail,
-                format!("{:.0}% of the face is blown out", clipped * 100.0),
-            )
+            (Status::Fail, format!("{:.0}% of the face is blown out", clipped * 100.0))
         } else if median < 0.03 {
             (Status::Fail, "face too dark".into())
         } else if clipped > 0.01 || median < 0.06 {
@@ -261,23 +217,12 @@ pub fn run(
     c.push(check(
         "framing",
         "Whole head in photo",
-        if cut > 0.01 {
-            Status::Fail
-        } else {
-            grade(p.outside_fraction, 0.02, 0.15)
-        },
-        format!(
-            "{:.0}% of the frame lies outside the original photo",
-            p.outside_fraction * 100.0
-        ),
+        if cut > 0.01 { Status::Fail } else { grade(p.outside_fraction, 0.02, 0.15) },
+        format!("{:.0}% of the frame lies outside the original photo", p.outside_fraction * 100.0),
     ));
 
     let status = c.iter().map(|c| c.status).max().unwrap_or(Status::Pass);
-    Report {
-        spec: spec.id,
-        status,
-        checks: c,
-    }
+    Report { spec: spec.id, status, checks: c }
 }
 
 fn laplacian_variance(f: &Frame, idx: &[usize]) -> f32 {

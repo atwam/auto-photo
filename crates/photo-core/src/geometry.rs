@@ -94,9 +94,7 @@ impl Head {
         if let Some(t) = best {
             self.hair_top = Some(add(self.eyes, scale(self.up, t)));
             let hair = t / self.forehead;
-            let k = (0.5 * (SKULL_FROM_FOREHEAD + hair - HAIR_THICKNESS))
-                .clamp(SKULL_MIN, SKULL_MAX)
-                .min(hair);
+            let k = (0.5 * (SKULL_FROM_FOREHEAD + hair - HAIR_THICKNESS)).clamp(SKULL_MIN, SKULL_MAX).min(hair);
             self.skull_top = add(self.eyes, scale(self.up, k * self.forehead));
         }
     }
@@ -123,12 +121,7 @@ pub struct Adjust {
 
 impl Default for Adjust {
     fn default() -> Self {
-        Adjust {
-            dx_mm: 0.0,
-            dy_mm: 0.0,
-            zoom: 1.0,
-            rotate_deg: 0.0,
-        }
+        Adjust { dx_mm: 0.0, dy_mm: 0.0, zoom: 1.0, rotate_deg: 0.0 }
     }
 }
 
@@ -168,16 +161,7 @@ pub fn place(head: &Head, spec: &Spec, adjust: Adjust, src_w: u32, src_h: u32) -
         return p;
     };
     // Positive shift moves the subject up, i.e. negative dy.
-    place_raw(
-        head,
-        spec,
-        Adjust {
-            dy_mm: adjust.dy_mm - shift,
-            ..adjust
-        },
-        src_w,
-        src_h,
-    )
+    place_raw(head, spec, Adjust { dy_mm: adjust.dy_mm - shift, ..adjust }, src_w, src_h)
 }
 
 fn place_raw(head: &Head, spec: &Spec, adjust: Adjust, src_w: u32, src_h: u32) -> Placement {
@@ -189,13 +173,8 @@ fn place_raw(head: &Head, spec: &Spec, adjust: Adjust, src_w: u32, src_h: u32) -
     // Frame centre sits below the head top on the face axis.
     let down = scale(head.up, -1.0);
     let across = Point::new(-head.up.y, head.up.x);
-    let center = add(
-        add(
-            top,
-            scale(down, (spec.height_mm * 0.5 - top_y - adjust.dy_mm) * s),
-        ),
-        scale(across, -adjust.dx_mm * s),
-    );
+    let center =
+        add(add(top, scale(down, (spec.height_mm * 0.5 - top_y - adjust.dy_mm) * s)), scale(across, -adjust.dx_mm * s));
     let angle = head.roll + adjust.rotate_deg.to_radians();
     let mm_to_src = Affine::crop(center, spec.width_mm, spec.height_mm, s, angle);
     let to_mm = mm_to_src.inverse();
@@ -238,14 +217,7 @@ impl Placement {
     pub fn px_to_src(&self, px_per_mm: f32) -> Affine {
         let m = &self.mm_to_src;
         let k = 1.0 / px_per_mm;
-        Affine {
-            a: m.a * k,
-            b: m.b * k,
-            c: m.c,
-            d: m.d * k,
-            e: m.e * k,
-            f: m.f,
-        }
+        Affine { a: m.a * k, b: m.b * k, c: m.c, d: m.d * k, e: m.e * k, f: m.f }
     }
 }
 
@@ -287,17 +259,9 @@ mod tests {
     fn places_head_at_target_size_and_centred() {
         for spec in crate::spec::SPECS {
             let p = place(&head(), spec, Adjust::default(), 1000, 1400);
-            assert!(
-                (p.head_mm - spec.head_target_mm()).abs() < 0.01,
-                "{}: {}",
-                spec.id,
-                p.head_mm
-            );
+            assert!((p.head_mm - spec.head_target_mm()).abs() < 0.01, "{}: {}", spec.id, p.head_mm);
             assert!(p.center_offset_mm.abs() < 0.01);
-            assert!(
-                p.eyes_from_bottom_mm >= spec.eyes_min_mm
-                    && p.eyes_from_bottom_mm <= spec.eyes_max_mm
-            );
+            assert!(p.eyes_from_bottom_mm >= spec.eyes_min_mm && p.eyes_from_bottom_mm <= spec.eyes_max_mm);
             assert_eq!(p.outside_fraction, 0.0);
         }
     }
@@ -305,28 +269,10 @@ mod tests {
     #[test]
     fn zoom_and_rotation_adjustments() {
         let spec = by_id("icao").unwrap();
-        let p = place(
-            &head(),
-            spec,
-            Adjust {
-                zoom: 1.05,
-                ..Default::default()
-            },
-            1000,
-            1400,
-        );
+        let p = place(&head(), spec, Adjust { zoom: 1.05, ..Default::default() }, 1000, 1400);
         assert!((p.head_mm - 34.0 * 1.05).abs() < 0.01);
         // Rotating the frame keeps the head size (measured along the frame's vertical).
-        let p = place(
-            &head(),
-            spec,
-            Adjust {
-                rotate_deg: 3.0,
-                ..Default::default()
-            },
-            1000,
-            1400,
-        );
+        let p = place(&head(), spec, Adjust { rotate_deg: 3.0, ..Default::default() }, 1000, 1400);
         assert!((p.head_mm - 34.0 * 3f32.to_radians().cos()).abs() < 0.05);
     }
 

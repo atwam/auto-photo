@@ -69,6 +69,17 @@ chin to the **crown** (top of the skull, not the hair), per ICAO, gov.uk and ANT
 | UK | 29–34 mm | cream / light grey | digital photos must be unaltered; ≥600×750 px, 50 KB–10 MB |
 | Germany | 32–36 mm | neutral light grey | printed photos no longer accepted for passports/ID since 2025 |
 
+## Image processing notes
+
+- **Matte refinement.** The network matte is computed at ~10 px/mm and is soft. At output resolution it is
+  tightened, then a colour guided filter restores softness only along real image edges (hair strands).
+  Compositing replaces the *local* original background colour, so old background colour doesn't bleed into hair.
+- **White balance** is estimated on the whole original photo from three cues voting in log-chromaticity:
+  eye whites (sclera, with a small warm prior), the background (median), and gray-edge. Cues far from the
+  consensus are down-weighted, so a coloured wall doesn't skew the result. The UI slider is a manual
+  cool↔warm offset around the automatic setting.
+- **Camera hints** run the face detector on ~6 frames/s and guide distance, position, tilt, yaw and lighting.
+
 ## Known limitations
 
 - The skull top is estimated from face proportions blended with the hair matte. It is usually within

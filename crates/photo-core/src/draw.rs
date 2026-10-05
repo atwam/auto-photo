@@ -8,17 +8,12 @@ pub type Color = [u8; 3];
 
 pub fn regular() -> &'static FontRef<'static> {
     static F: OnceLock<FontRef<'static>> = OnceLock::new();
-    F.get_or_init(|| {
-        FontRef::try_from_slice(include_bytes!("../assets/Inter-Regular.ttf"))
-            .expect("embedded font")
-    })
+    F.get_or_init(|| FontRef::try_from_slice(include_bytes!("../assets/Inter-Regular.ttf")).expect("embedded font"))
 }
 
 pub fn bold() -> &'static FontRef<'static> {
     static F: OnceLock<FontRef<'static>> = OnceLock::new();
-    F.get_or_init(|| {
-        FontRef::try_from_slice(include_bytes!("../assets/Inter-Bold.ttf")).expect("embedded font")
-    })
+    F.get_or_init(|| FontRef::try_from_slice(include_bytes!("../assets/Inter-Bold.ttf")).expect("embedded font"))
 }
 
 pub struct Canvas {
@@ -27,19 +22,12 @@ pub struct Canvas {
 
 impl Canvas {
     pub fn new(w: u32, h: u32, bg: Color) -> Self {
-        Canvas {
-            img: RgbImage::from_pixel(w, h, image::Rgb(bg)),
-        }
+        Canvas { img: RgbImage::from_pixel(w, h, image::Rgb(bg)) }
     }
 
     /// Blend `color` into a pixel with coverage `a` (0..1).
     pub fn blend(&mut self, x: i32, y: i32, color: Color, a: f32) {
-        if a <= 0.0
-            || x < 0
-            || y < 0
-            || x >= self.img.width() as i32
-            || y >= self.img.height() as i32
-        {
+        if a <= 0.0 || x < 0 || y < 0 || x >= self.img.width() as i32 || y >= self.img.height() as i32 {
             return;
         }
         let a = a.min(1.0);
@@ -50,15 +38,7 @@ impl Canvas {
     }
 
     /// Run `coverage(x, y)` (pixel centre) over a bounding box.
-    fn shade(
-        &mut self,
-        x0: f32,
-        y0: f32,
-        x1: f32,
-        y1: f32,
-        color: Color,
-        coverage: impl Fn(f32, f32) -> f32,
-    ) {
+    fn shade(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: Color, coverage: impl Fn(f32, f32) -> f32) {
         for y in (y0.floor() as i32)..=(y1.ceil() as i32) {
             for x in (x0.floor() as i32)..=(x1.ceil() as i32) {
                 let a = coverage(x as f32 + 0.5, y as f32 + 0.5);
@@ -77,22 +57,10 @@ impl Canvas {
 
     /// Annulus between radii `r0` and `r1` (`r0 = 0` for a disk).
     pub fn ring(&mut self, cx: f32, cy: f32, r0: f32, r1: f32, color: Color) {
-        self.shade(
-            cx - r1 - 1.0,
-            cy - r1 - 1.0,
-            cx + r1 + 1.0,
-            cy + r1 + 1.0,
-            color,
-            |x, y| {
-                let d = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
-                (r1 - d + 0.5).clamp(0.0, 1.0)
-                    * if r0 > 0.0 {
-                        (d - r0 + 0.5).clamp(0.0, 1.0)
-                    } else {
-                        1.0
-                    }
-            },
-        );
+        self.shade(cx - r1 - 1.0, cy - r1 - 1.0, cx + r1 + 1.0, cy + r1 + 1.0, color, |x, y| {
+            let d = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
+            (r1 - d + 0.5).clamp(0.0, 1.0) * if r0 > 0.0 { (d - r0 + 0.5).clamp(0.0, 1.0) } else { 1.0 }
+        });
     }
 
     /// Thick line with round caps.
@@ -116,22 +84,8 @@ impl Canvas {
 
     /// Tick mark in a box of `size` with top-left at (x, y).
     pub fn tick(&mut self, x: f32, y: f32, size: f32, width: f32, color: Color) {
-        self.line(
-            x + size * 0.12,
-            y + size * 0.55,
-            x + size * 0.4,
-            y + size * 0.82,
-            width,
-            color,
-        );
-        self.line(
-            x + size * 0.4,
-            y + size * 0.82,
-            x + size * 0.9,
-            y + size * 0.18,
-            width,
-            color,
-        );
+        self.line(x + size * 0.12, y + size * 0.55, x + size * 0.4, y + size * 0.82, width, color);
+        self.line(x + size * 0.4, y + size * 0.82, x + size * 0.9, y + size * 0.18, width, color);
     }
 
     /// Exclamation mark in a box of `size` with top-left at (x, y).
@@ -142,15 +96,7 @@ impl Canvas {
     }
 
     /// Draw text with its baseline-left at (x, y); returns the advance width.
-    pub fn text(
-        &mut self,
-        font: &FontRef<'_>,
-        size: f32,
-        x: f32,
-        y: f32,
-        s: &str,
-        color: Color,
-    ) -> f32 {
+    pub fn text(&mut self, font: &FontRef<'_>, size: f32, x: f32, y: f32, s: &str, color: Color) -> f32 {
         let scaled = font.as_scaled(PxScale::from(size));
         let mut caret = x;
         let mut prev = None;
@@ -164,43 +110,19 @@ impl Canvas {
             prev = Some(id);
             if let Some(o) = font.outline_glyph(g) {
                 let b = o.px_bounds();
-                o.draw(|gx, gy, a| {
-                    self.blend(
-                        b.min.x as i32 + gx as i32,
-                        b.min.y as i32 + gy as i32,
-                        color,
-                        a,
-                    )
-                });
+                o.draw(|gx, gy, a| self.blend(b.min.x as i32 + gx as i32, b.min.y as i32 + gy as i32, color, a));
             }
         }
         caret - x
     }
 
-    pub fn text_centered(
-        &mut self,
-        font: &FontRef<'_>,
-        size: f32,
-        cx: f32,
-        y: f32,
-        s: &str,
-        color: Color,
-    ) {
+    pub fn text_centered(&mut self, font: &FontRef<'_>, size: f32, cx: f32, y: f32, s: &str, color: Color) {
         let w = text_width(font, size, s);
         self.text(font, size, cx - w * 0.5, y, s, color);
     }
 
     /// Text centred on the top of a circle, reading clockwise, baseline on radius `r`.
-    pub fn text_arc(
-        &mut self,
-        font: &FontRef<'_>,
-        size: f32,
-        cx: f32,
-        cy: f32,
-        r: f32,
-        s: &str,
-        color: Color,
-    ) {
+    pub fn text_arc(&mut self, font: &FontRef<'_>, size: f32, cx: f32, cy: f32, r: f32, s: &str, color: Color) {
         let scaled = font.as_scaled(PxScale::from(size));
         let total = text_width(font, size, s);
         // Angle measured clockwise from 12 o'clock.
@@ -243,11 +165,7 @@ fn sample(buf: &[f32], w: usize, h: usize, x: f32, y: f32) -> f32 {
     let (x0, y0) = (x.floor(), y.floor());
     let (fx, fy) = (x - x0, y - y0);
     let at = |x: i32, y: i32| {
-        if x < 0 || y < 0 || x >= w as i32 || y >= h as i32 {
-            0.0
-        } else {
-            buf[y as usize * w + x as usize]
-        }
+        if x < 0 || y < 0 || x >= w as i32 || y >= h as i32 { 0.0 } else { buf[y as usize * w + x as usize] }
     };
     let (x0, y0) = (x0 as i32, y0 as i32);
     let top = at(x0, y0) * (1.0 - fx) + at(x0 + 1, y0) * fx;
@@ -275,11 +193,7 @@ pub fn wrap(font: &FontRef<'_>, size: f32, s: &str, max_w: f32) -> Vec<String> {
     let mut lines = Vec::new();
     let mut cur = String::new();
     for word in s.split_whitespace() {
-        let candidate = if cur.is_empty() {
-            word.to_string()
-        } else {
-            format!("{cur} {word}")
-        };
+        let candidate = if cur.is_empty() { word.to_string() } else { format!("{cur} {word}") };
         if text_width(font, size, &candidate) > max_w && !cur.is_empty() {
             lines.push(std::mem::take(&mut cur));
             cur = word.to_string();

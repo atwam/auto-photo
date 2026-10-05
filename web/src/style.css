@@ -78,6 +78,19 @@ h1 em { font-style: normal; color: var(--accent); }
 .btn small { display: block; font-weight: 500; font-size: 12px; opacity: 0.75; }
 .btn:disabled { opacity: 0.45; pointer-events: none; }
 .btn span.lbl { display: flex; flex-direction: column; }
+.btn.dl { justify-content: flex-start; padding: 12px 16px; gap: 14px; }
+.dl-ico { width: 26px; height: 33px; flex: none; stroke-width: 1.4; }
+.dl-ico.sheet { width: 46px; height: 31px; stroke-width: 1; }
+.start-actions { position: relative; border-radius: 16px; }
+.drop-zone {
+  display: none; position: absolute; inset: -10px; z-index: 2; border-radius: 16px;
+  border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  align-items: center; justify-content: center; gap: 10px; color: var(--accent); font-weight: 600; pointer-events: none;
+}
+.drop-zone svg { width: 24px; height: 24px; }
+.start-actions.dragging .drop-zone { display: flex; animation: fade-in 0.15s ease; }
+.start-actions.dragging > :not(.drop-zone) { visibility: hidden; }
+.start-actions.over .drop-zone { background: color-mix(in srgb, var(--accent) 24%, var(--bg)); transform: scale(1.02); transition: transform 0.15s; }
 .model-status { display: flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; color: var(--muted); }
 .model-status .bar { width: 120px; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .model-status .bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
@@ -104,6 +117,17 @@ h1 em { font-style: normal; color: var(--accent); }
   background: rgba(10, 12, 15, 0.72); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 10px 16px; border-radius: 999px; font-size: 14px; white-space: nowrap; transition: opacity 0.3s;
 }
+.cam-hint {
+  position: absolute; left: 50%; bottom: calc(max(24px, env(safe-area-inset-bottom)) + 100px); transform: translateX(-50%);
+  background: rgba(10, 12, 15, 0.78); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 10px 18px; border-radius: 999px; font-size: 16px; font-weight: 600; white-space: nowrap;
+  display: flex; align-items: center; gap: 10px; transition: background 0.2s, color 0.2s;
+}
+.cam-hint:empty { display: none; }
+.cam-hint.ok { background: var(--pass); color: #04211b; border-color: transparent; }
+.cam-hint .arrow { font-size: 20px; line-height: 1; }
+.oval.ok .guide { stroke: var(--pass); stroke-dasharray: none; stroke-width: 4; }
+.shutter.ready { box-shadow: 0 0 0 6px color-mix(in srgb, var(--pass) 55%, transparent); border-color: var(--pass); }
 .cam-bar {
   position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); left: 0; right: 0;
   display: flex; align-items: center; justify-content: center; gap: 28px;
@@ -173,6 +197,13 @@ h1 em { font-style: normal; color: var(--accent); }
 .panel summary { cursor: pointer; padding: 10px 0; font-weight: 600; font-size: 14px; }
 .ctl { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 12px; padding: 7px 0; font-size: 13px; color: var(--muted); }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
+.temp-wrap { display: grid; gap: 2px; }
+input.temp { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 8px; margin: 8px 0;
+  background: linear-gradient(90deg, #5b9bff, #d9dee4 50%, #ffbe45); }
+input.temp::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--bg); box-shadow: 0 0 0 1px #8b95a1; cursor: pointer; }
+input.temp::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--bg); cursor: pointer; }
+.temp-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 .swatches { display: flex; gap: 8px; }
 .swatch { width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--line); cursor: pointer; }
 .swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--bg) inset; }

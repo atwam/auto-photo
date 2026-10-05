@@ -29,7 +29,11 @@
           </p>
           <div class="field-label">Document</div>
           <div id="spec-picker" class="chips" role="radiogroup" aria-label="Photo specification"></div>
-          <div class="start-actions">
+          <div class="start-actions" id="start-actions">
+            <div class="drop-zone" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M4 17v3h16v-3" /></svg>
+              <span>Drop your photo here</span>
+            </div>
             <button id="btn-camera" class="btn primary big">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
               Take a photo
@@ -60,6 +64,7 @@
         <video id="video" playsinline muted autoplay></video>
         <svg id="oval" class="oval" aria-hidden="true"></svg>
         <div id="ticker" class="ticker"></div>
+        <div id="cam-hint" class="cam-hint" role="status" aria-live="polite"></div>
         <div class="cam-bar">
           <button id="cam-cancel" class="icon-btn" aria-label="Cancel">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -104,7 +109,9 @@
             <div class="ctl"><label for="s-bg">Background replacement</label><input id="s-bg" type="range" min="0" max="1" step="0.01" value="1" /></div>
             <div class="ctl"><span class="ctl-label">Background colour</span><div id="bg-swatches" class="swatches"></div></div>
             <div class="ctl"><label for="s-bright">Brightness</label><input id="s-bright" type="range" min="-1" max="1" step="0.05" value="0" /></div>
-            <div class="ctl"><label for="s-wb">White balance correction</label><input id="s-wb" type="range" min="0" max="1" step="0.01" value="1" /></div>
+            <div class="ctl"><label for="s-temp">White balance</label>
+              <div class="temp-wrap"><input id="s-temp" class="temp" type="range" min="-1" max="1" step="0.02" value="0" />
+                <div class="temp-labels"><span>Cooler</span><span>Auto</span><span>Warmer</span></div></div></div>
             <div class="ctl"><label for="s-exp">Auto exposure</label><input id="s-exp" type="range" min="0" max="1" step="0.01" value="1" /></div>
           </details>
           <details class="panel">
@@ -117,9 +124,9 @@
           <button id="btn-reset" class="btn ghost small">Reset adjustments</button>
 
           <div class="downloads">
-            <button id="dl-photo" class="btn primary">Download digital photo<small id="dl-photo-sub"></small></button>
+            <button id="dl-photo" class="btn primary dl"><svg class="dl-ico" viewBox="0 0 28 36" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="33" rx="1.5" /><circle cx="14" cy="14" r="5.5" /><path d="M5 34.5c0-6 4-10 9-10s9 4 9 10" /></svg><span class="lbl">Download digital photo<small id="dl-photo-sub"></small></span></button>
             <div class="sheet-row">
-              <button id="dl-sheet" class="btn primary">Download print sheet<small>6 photos · JPEG 300 dpi</small></button>
+              <button id="dl-sheet" class="btn primary dl"><svg class="dl-ico sheet" viewBox="0 0 48 32" aria-hidden="true"><rect x="0.75" y="0.75" width="46.5" height="30.5" rx="1.5" /><g transform="translate(3,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(14,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(25,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(3,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(14,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(25,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><path d="M37 9h7M37 13h7M37 17h5" /></svg><span class="lbl">Download print sheet<small>6 photos · JPEG 300 dpi</small></span></button>
               <div class="chips small" id="paper-picker" role="radiogroup" aria-label="Paper size">
                 <button class="chip on" data-paper="10x15">10×15 cm</button>
                 <button class="chip" data-paper="4x6">4×6 in</button>

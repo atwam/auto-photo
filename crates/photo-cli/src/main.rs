@@ -84,11 +84,7 @@ fn run() -> Result<bool, Box<dyn std::error::Error>> {
         face_mesh: &read("face_mesh.onnx")?,
         modnet: &read("modnet.onnx")?,
     })?;
-    let params = ToneParams {
-        background: args.background,
-        brightness_ev: args.brightness,
-        ..Default::default()
-    };
+    let params = ToneParams { background: args.background, brightness_ev: args.brightness, ..Default::default() };
     let date = today();
     let mut all_ok = true;
 
@@ -103,35 +99,14 @@ fn run() -> Result<bool, Box<dyn std::error::Error>> {
             }
         };
         let digital = produce(&img, &a, spec, Adjust::default(), &params, args.dpi as f32);
-        let print = produce(
-            &img,
-            &a,
-            spec,
-            Adjust::default(),
-            &params,
-            args.sheet_dpi as f32,
-        );
+        let print = produce(&img, &a, spec, Adjust::default(), &params, args.sheet_dpi as f32);
         let report = &digital.report;
 
-        let photo_path = output_path(
-            input,
-            args.out.as_deref(),
-            &format!("{}_photo.jpg", spec.id),
-        );
+        let photo_path = output_path(input, args.out.as_deref(), &format!("{}_photo.jpg", spec.id));
         save_jpeg(&to_u8(&digital.photo), &photo_path, args.dpi)?;
-        let sheet_img = sheet(
-            &to_u8(&print.photo),
-            spec,
-            paper,
-            args.sheet_dpi as f32,
-            report,
-            &SheetText { date: &date },
-        );
-        let sheet_path = output_path(
-            input,
-            args.out.as_deref(),
-            &format!("{}_sheet.jpg", spec.id),
-        );
+        let sheet_img =
+            sheet(&to_u8(&print.photo), spec, paper, args.sheet_dpi as f32, report, &SheetText { date: &date });
+        let sheet_path = output_path(input, args.out.as_deref(), &format!("{}_sheet.jpg", spec.id));
         save_jpeg(&sheet_img, &sheet_path, args.sheet_dpi)?;
 
         if args.json {
@@ -141,12 +116,7 @@ fn run() -> Result<bool, Box<dyn std::error::Error>> {
             });
             println!("{}", serde_json::to_string_pretty(&v)?);
         } else {
-            println!(
-                "{} → {}, {}",
-                input.display(),
-                photo_path.display(),
-                sheet_path.display()
-            );
+            println!("{} → {}, {}", input.display(), photo_path.display(), sheet_path.display());
             for c in &report.checks {
                 let mark = match c.status {
                     Status::Pass => "\x1b[32m✓\x1b[0m",
@@ -167,9 +137,7 @@ fn run() -> Result<bool, Box<dyn std::error::Error>> {
 /// Decode and apply the EXIF orientation (phones often store photos sideways).
 fn open_oriented(path: &Path) -> Result<image::DynamicImage, Box<dyn std::error::Error>> {
     use image::ImageDecoder;
-    let mut decoder = image::ImageReader::open(path)?
-        .with_guessed_format()?
-        .into_decoder()?;
+    let mut decoder = image::ImageReader::open(path)?.with_guessed_format()?.into_decoder()?;
     let orientation = decoder.orientation()?;
     let mut img = image::DynamicImage::from_decoder(decoder)?;
     img.apply_orientation(orientation);
@@ -178,17 +146,11 @@ fn open_oriented(path: &Path) -> Result<image::DynamicImage, Box<dyn std::error:
 
 fn output_path(input: &Path, dir: Option<&Path>, suffix: &str) -> PathBuf {
     let stem = input.file_stem().unwrap_or_default().to_string_lossy();
-    let dir = dir
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| input.parent().unwrap_or(Path::new(".")).to_path_buf());
+    let dir = dir.map(Path::to_path_buf).unwrap_or_else(|| input.parent().unwrap_or(Path::new(".")).to_path_buf());
     dir.join(format!("{stem}_{suffix}"))
 }
 
-fn save_jpeg(
-    img: &image::RgbImage,
-    path: &Path,
-    dpi: u32,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn save_jpeg(img: &image::RgbImage, path: &Path, dpi: u32) -> Result<(), Box<dyn std::error::Error>> {
     let file = std::io::BufWriter::new(std::fs::File::create(path)?);
     let mut enc = JpegEncoder::new_with_quality(file, 95);
     enc.set_pixel_density(PixelDensity::dpi(dpi as u16));
@@ -198,10 +160,7 @@ fn save_jpeg(
 
 /// Today's UTC date as YYYY-MM-DD.
 fn today() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let z = (secs / 86_400) as i64 + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;

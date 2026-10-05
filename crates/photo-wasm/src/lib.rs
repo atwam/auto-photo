@@ -22,8 +22,7 @@ fn err(e: impl std::fmt::Display) -> JsError {
 }
 
 fn to_js<T: Serialize>(v: &T) -> Result<JsValue, JsError> {
-    v.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
-        .map_err(err)
+    v.serialize(&serde_wasm_bindgen::Serializer::json_compatible()).map_err(err)
 }
 
 /// All available specs, for the spec picker.
@@ -41,34 +40,23 @@ pub struct Engine {
 impl Engine {
     #[wasm_bindgen(constructor)]
     pub fn new(yunet: &[u8], face_mesh: &[u8], modnet: &[u8]) -> Result<Engine, JsError> {
-        let models = Models::load(ModelBytes {
-            yunet,
-            face_mesh,
-            modnet,
-        })
-        .map_err(err)?;
+        let models = Models::load(ModelBytes { yunet, face_mesh, modnet }).map_err(err)?;
         Ok(Engine { models })
+    }
+
+    /// Fast face detection only (no landmarks), for live camera hints.
+    /// Returns `[{bbox, score, kps}]`, best first.
+    pub fn detect(&self, rgba: &[u8], width: u32, height: u32) -> Result<JsValue, JsError> {
+        let img = rgb_from_rgba(rgba, width, height)?;
+        let dets = photo_core::detect::detect_faces(&self.models, &img).map_err(err)?;
+        to_js(&dets)
     }
 
     /// Step 1: find the face in an RGBA image (as from canvas `ImageData`).
     pub fn locate(&self, rgba: &[u8], width: u32, height: u32) -> Result<Portrait, JsError> {
-        if rgba.len() != (width * height * 4) as usize {
-            return Err(err("pixel buffer does not match dimensions"));
-        }
-        let mut img = Rgb32FImage::new(width, height);
-        for (o, px) in img.pixels_mut().zip(rgba.chunks_exact(4)) {
-            o.0 = [
-                px[0] as f32 / 255.0,
-                px[1] as f32 / 255.0,
-                px[2] as f32 / 255.0,
-            ];
-        }
+        let img = rgb_from_rgba(rgba, width, height)?;
         let located = locate(&self.models, &img).map_err(err)?;
-        Ok(Portrait {
-            img,
-            located: Some(located),
-            analysis: None,
-        })
+        Ok(Portrait { img, located: Some(located), analysis: None })
     }
 }
 
@@ -115,10 +103,7 @@ impl Portrait {
 
     /// Step 2: separate the person from the background.
     pub fn segment(&mut self, engine: &Engine) -> Result<(), JsError> {
-        let loc = self
-            .located
-            .take()
-            .ok_or_else(|| err("already segmented"))?;
+        let loc = self.located.take().ok_or_else(|| err("already segmented"))?;
         self.analysis = Some(segment(&engine.models, &self.img, loc).map_err(err)?);
         Ok(())
     }
@@ -127,10 +112,7 @@ impl Portrait {
     /// 8-bit alpha. Outside the matted region the value is 255 (not background).
     pub fn matte(&self, width: u32, height: u32) -> Result<Vec<u8>, JsError> {
         let a = self.analysis()?;
-        let (sx, sy) = (
-            self.img.width() as f32 / width as f32,
-            self.img.height() as f32 / height as f32,
-        );
+        let (sx, sy) = (self.img.width() as f32 / width as f32, self.img.height() as f32 / height as f32);
         let mut out = Vec::with_capacity((width * height) as usize);
         for y in 0..height {
             for x in 0..width {
@@ -166,13 +148,7 @@ impl Portrait {
     }
 
     /// Render the print sheet: six photos plus the seal.
-    pub fn sheet(
-        &self,
-        spec: &str,
-        opts: JsValue,
-        paper: &str,
-        date: &str,
-    ) -> Result<Rendered, JsError> {
+    pub fn sheet(&self, spec: &str, opts: JsValue, paper: &str, date: &str) -> Result<Rendered, JsError> {
         let spec = find_spec(spec)?;
         let opts: RenderOpts = parse_opts(opts)?;
         let paper = match paper {
@@ -181,35 +157,27 @@ impl Portrait {
         };
         let dpi = opts.dpi.unwrap_or(300.0);
         let a = self.analysis()?;
-        let p = produce(
-            &self.img,
-            a,
-            spec,
-            opts.adjust.unwrap_or_default(),
-            &opts.tone.unwrap_or_default(),
-            dpi,
-        );
-        let img = sheet(
-            &to_u8(&p.photo),
-            spec,
-            paper,
-            dpi,
-            &p.report,
-            &SheetText { date },
-        );
-        Ok(Rendered::new(
-            img,
-            serde_json::json!({ "report": p.report }).to_string(),
-        ))
+        let p = produce(&self.img, a, spec, opts.adjust.unwrap_or_default(), &opts.tone.unwrap_or_default(), dpi);
+        let img = sheet(&to_u8(&p.photo), spec, paper, dpi, &p.report, &SheetText { date });
+        Ok(Rendered::new(img, serde_json::json!({ "report": p.report }).to_string()))
     }
 }
 
 impl Portrait {
     fn analysis(&self) -> Result<&Analysis, JsError> {
-        self.analysis
-            .as_ref()
-            .ok_or_else(|| err("call segment() first"))
+        self.analysis.as_ref().ok_or_else(|| err("call segment() first"))
     }
+}
+
+fn rgb_from_rgba(rgba: &[u8], width: u32, height: u32) -> Result<Rgb32FImage, JsError> {
+    if rgba.len() != (width * height * 4) as usize {
+        return Err(err("pixel buffer does not match dimensions"));
+    }
+    let mut img = Rgb32FImage::new(width, height);
+    for (o, px) in img.pixels_mut().zip(rgba.chunks_exact(4)) {
+        o.0 = [px[0] as f32 / 255.0, px[1] as f32 / 255.0, px[2] as f32 / 255.0];
+    }
+    Ok(img)
 }
 
 fn find_spec(id: &str) -> Result<&'static Spec, JsError> {

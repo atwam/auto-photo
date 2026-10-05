@@ -4,15 +4,21 @@
 use crate::detect::mesh;
 use crate::geometry::Placement;
 use crate::imgops::{Point, linear_to_srgb, luma, srgb_to_linear, warp_resampled};
+use crate::matting;
 use crate::pipeline::Analysis;
 use image::Rgb32FImage;
 use serde::{Deserialize, Serialize};
 
 /// User-facing correction controls. Strengths are 0..1.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ToneParams {
-    /// Neutralise colour cast measured on the background.
+    /// Strength of the automatic white balance (illuminant estimated on the
+    /// original photo).
     pub white_balance: f32,
+    /// Manual offset on top of the automatic white balance, -1 (cooler) to
+    /// 1 (warmer).
+    pub temperature: f32,
     /// Automatic exposure correction based on face highlights.
     pub auto_exposure: f32,
     /// Extra exposure in stops, applied after the automatic correction.
@@ -27,6 +33,7 @@ impl Default for ToneParams {
     fn default() -> Self {
         ToneParams {
             white_balance: 1.0,
+            temperature: 0.0,
             auto_exposure: 1.0,
             brightness_ev: 0.0,
             background: 1.0,
@@ -41,8 +48,12 @@ impl Default for ToneParams {
 pub struct Frame {
     /// Linear RGB.
     pub linear: Rgb32FImage,
-    /// Person alpha per pixel (1 = person).
+    /// Person alpha per pixel (1 = person), refined against the image.
     pub alpha: Vec<f32>,
+    /// Local colour of the original background behind each pixel (linear).
+    pub bg_local: Vec<[f32; 3]>,
+    /// Automatic white-balance gains from the whole original photo.
+    pub wb_gains: [f32; 3],
     /// Pixels that fall outside the source photo.
     pub outside: Vec<bool>,
     /// Skin sample region (cheeks/nose), as pixel indices.
@@ -50,16 +61,12 @@ pub struct Frame {
     pub px_per_mm: f32,
 }
 
-pub fn render_frame(
-    img: &Rgb32FImage,
-    a: &Analysis,
-    placement: &Placement,
-    px_per_mm: f32,
-) -> Frame {
+pub fn render_frame(img: &Rgb32FImage, a: &Analysis, placement: &Placement, px_per_mm: f32) -> Frame {
     let w = (placement.width_mm * px_per_mm).round() as u32;
     let h = (placement.height_mm * px_per_mm).round() as u32;
     let m = placement.px_to_src(px_per_mm);
     let mut linear = warp_resampled(img, w, h, &m);
+    let guide: Vec<[f32; 3]> = linear.pixels().map(|p| p.0).collect();
     for p in linear.pixels_mut() {
         p.0 = p.0.map(srgb_to_linear);
     }
@@ -73,6 +80,16 @@ pub fn render_frame(
             outside.push(p.x < 0.0 || p.y < 0.0 || p.x >= sw || p.y >= sh);
         }
     }
+    let (wu, hu) = (w as usize, h as usize);
+    let mut alpha = matting::refine_alpha(&guide, &alpha, wu, hu, px_per_mm);
+    for (a, &o) in alpha.iter_mut().zip(&outside) {
+        if o {
+            *a = 0.0;
+        }
+    }
+    let lin: Vec<[f32; 3]> = linear.pixels().map(|p| p.0).collect();
+    let bg_radius = ((px_per_mm * 1.2).round() as usize).max(2);
+    let bg_local = matting::local_background(&lin, &alpha, wu, hu, bg_radius);
     // Skin: ellipse centred between the eyes and the mouth, avoiding eyes,
     // brows and beard as much as a simple shape can.
     let to_px = m.inverse();
@@ -80,10 +97,7 @@ pub fn render_frame(
     let eyes = to_px.apply(a.head.eyes);
     let mouth = to_px.apply(pts[mesh::MOUTH_R].mid(pts[mesh::MOUTH_L]));
     let c = Point::new((eyes.x + mouth.x) * 0.5, eyes.y + (mouth.y - eyes.y) * 0.45);
-    let rx = to_px
-        .apply(pts[mesh::CHEEK_R])
-        .dist(to_px.apply(pts[mesh::CHEEK_L]))
-        * 0.32;
+    let rx = to_px.apply(pts[mesh::CHEEK_R]).dist(to_px.apply(pts[mesh::CHEEK_L])) * 0.32;
     let ry = (mouth.y - eyes.y) * 0.35;
     let mut skin = Vec::new();
     for y in (c.y - ry).max(0.0) as u32..((c.y + ry) as u32).min(h) {
@@ -94,13 +108,7 @@ pub fn render_frame(
             }
         }
     }
-    Frame {
-        linear,
-        alpha,
-        outside,
-        skin,
-        px_per_mm,
-    }
+    Frame { linear, alpha, bg_local, wb_gains: a.illuminant.gains, outside, skin, px_per_mm }
 }
 
 /// Measured corrections, reported back so the UI can show what changed.
@@ -114,48 +122,28 @@ pub struct ToneReport {
     pub background_fraction: f32,
 }
 
-/// Background pixels usable as a neutral reference.
+/// Log-gain of the red/blue swing at the ends of the temperature slider.
+const TEMPERATURE_RANGE: f32 = 0.35;
+
+/// Background pixels (clearly not the person, inside the photo).
 fn background_pixels(f: &Frame) -> Vec<usize> {
-    (0..f.alpha.len())
-        .filter(|&i| f.alpha[i] < 0.03 && !f.outside[i])
-        .collect()
+    (0..f.alpha.len()).filter(|&i| f.alpha[i] < 0.03 && !f.outside[i]).collect()
 }
 
 pub fn apply(f: &Frame, bg_target: [u8; 3], p: &ToneParams) -> (Rgb32FImage, ToneReport) {
-    let mut report = ToneReport {
-        wb_gains: [1.0; 3],
-        ..Default::default()
-    };
+    let mut report = ToneReport { wb_gains: [1.0; 3], ..Default::default() };
     let px = |i: usize| f.linear.as_raw()[i * 3..i * 3 + 3].try_into().unwrap();
 
-    // White balance: the background should be neutral. Trimmed mean of
-    // reasonably bright, unsaturated background pixels.
-    let bg = background_pixels(f);
-    report.background_fraction = bg.len() as f32 / f.alpha.len() as f32;
-    if report.background_fraction > 0.03 && p.white_balance > 0.0 {
-        let mut acc = [0.0f64; 3];
-        let mut n = 0usize;
-        for &i in &bg {
-            let c: [f32; 3] = px(i);
-            let l = luma(c);
-            let (mx, mn) = (c[0].max(c[1]).max(c[2]), c[0].min(c[1]).min(c[2]));
-            if l > 0.05 && l < 0.95 && (mx - mn) / mx.max(1e-4) < 0.35 {
-                for k in 0..3 {
-                    acc[k] += c[k] as f64;
-                }
-                n += 1;
-            }
-        }
-        if n > 100 {
-            let mean = acc.map(|v| (v / n as f64) as f32);
-            let l = luma(mean);
-            for k in 0..3 {
-                // Limit to ±25% so a deliberately tinted wall can't wreck skin tones.
-                let g = (l / mean[k].max(1e-4)).clamp(0.75, 1.25);
-                report.wb_gains[k] = 1.0 + (g - 1.0) * p.white_balance;
-            }
-        }
-    }
+    report.background_fraction = background_pixels(f).len() as f32 / f.alpha.len() as f32;
+
+    // White balance: automatic gains (partially, per `white_balance`), then
+    // the manual warm/cool offset, renormalised to keep luminance.
+    let mut g = f.wb_gains.map(|v| v.powf(p.white_balance));
+    let warm = (p.temperature * TEMPERATURE_RANGE).exp();
+    g[0] *= warm;
+    g[2] /= warm;
+    let l = luma(g);
+    report.wb_gains = g.map(|v| v / l);
 
     // Exposure: bring bright skin (98th percentile) to a healthy highlight
     // level. Using highlights rather than the mean avoids flattening every
@@ -167,11 +155,7 @@ pub fn apply(f: &Frame, bg_target: [u8; 3], p: &ToneParams) -> (Rgb32FImage, Ton
             .iter()
             .map(|&i| {
                 let c: [f32; 3] = px(i);
-                luma([
-                    c[0] * report.wb_gains[0],
-                    c[1] * report.wb_gains[1],
-                    c[2] * report.wb_gains[2],
-                ])
+                luma([c[0] * report.wb_gains[0], c[1] * report.wb_gains[1], c[2] * report.wb_gains[2]])
             })
             .collect();
         l.sort_by(f32::total_cmp);
@@ -187,17 +171,24 @@ pub fn apply(f: &Frame, bg_target: [u8; 3], p: &ToneParams) -> (Rgb32FImage, Ton
     let mut out = Rgb32FImage::new(f.linear.width(), f.linear.height());
     for (i, o) in out.pixels_mut().enumerate() {
         let c: [f32; 3] = px(i);
-        let mut v = [0.0; 3];
-        for k in 0..3 {
-            v[k] = c[k] * report.wb_gains[k] * gain;
-        }
-        let v = soft_clip(v);
         // Outside the photo there is nothing to keep: always fill.
         let a = if f.outside[i] { 0.0 } else { f.alpha[i] };
         let b = if f.outside[i] { 1.0 } else { p.background };
-        let keep = a + (1.0 - a) * (1.0 - b);
+        // Replace the original background's contribution with the new
+        // colour: out = I + (1-α)·b·(N - E). At edges E is the local
+        // background estimate, which strips its colour out of the hair; in
+        // clear background E is the pixel itself, so the fill is flat.
+        let t = (1.0 - a / 0.1).clamp(0.0, 1.0).powi(2);
+        let bl = f.bg_local[i];
+        let mut v = [0.0; 3];
         for k in 0..3 {
-            o.0[k] = linear_to_srgb(v[k] * keep + bg_lin[k] * (1.0 - keep));
+            let g = report.wb_gains[k] * gain;
+            let e = (bl[k] + (c[k] - bl[k]) * t) * g;
+            v[k] = (c[k] * g + (1.0 - a) * b * (bg_lin[k] - e)).max(0.0);
+        }
+        let v = soft_clip(v);
+        for k in 0..3 {
+            o.0[k] = linear_to_srgb(v[k]);
         }
     }
     (out, report)

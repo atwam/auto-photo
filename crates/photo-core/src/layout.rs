@@ -32,14 +32,7 @@ fn status_color(s: Status) -> Color {
 }
 
 /// Lay out `photo` (already rendered at `dpi` for `spec`) six times.
-pub fn sheet(
-    photo: &RgbImage,
-    spec: &Spec,
-    paper: Paper,
-    dpi: f32,
-    report: &Report,
-    text: &SheetText<'_>,
-) -> RgbImage {
+pub fn sheet(photo: &RgbImage, spec: &Spec, paper: Paper, dpi: f32, report: &Report, text: &SheetText<'_>) -> RgbImage {
     let k = dpi / 25.4;
     let (pw, ph) = paper.size_mm();
     let mut c = Canvas::new((pw * k).round() as u32, (ph * k).round() as u32, WHITE);
@@ -62,18 +55,7 @@ pub fn sheet(
     // Seal panel to the right of the grid.
     let x0 = gx + grid_w + MARGIN_MM;
     let x1 = pw - MARGIN_MM * 0.75;
-    seal_panel(
-        &mut c,
-        k,
-        x0,
-        gy,
-        x1 - x0,
-        grid_h,
-        spec,
-        paper,
-        report,
-        text,
-    );
+    seal_panel(&mut c, k, x0, gy, x1 - x0, grid_h, spec, paper, report, text);
     c.img
 }
 
@@ -175,22 +157,12 @@ fn seal_panel(
         "Automated self-check, not an official certification.".to_string(),
     ];
     if !spec.print_accepted {
-        footer.insert(
-            0,
-            "Printed photos are not accepted for this document.".into(),
-        );
+        footer.insert(0, "Printed photos are not accepted for this document.".into());
     }
-    let lines: Vec<String> = footer
-        .iter()
-        .flat_map(|l| wrap(regular(), small, l, pw))
-        .collect();
+    let lines: Vec<String> = footer.iter().flat_map(|l| wrap(regular(), small, l, pw)).collect();
     let mut fy = (y + h) * k - (lines.len() as f32 - 1.0) * small * 1.3;
     for l in lines {
-        let col = if l.starts_with("Printed photos") {
-            FAIL
-        } else {
-            MUTED
-        };
+        let col = if l.starts_with("Printed photos") { FAIL } else { MUTED };
         c.text(regular(), small, px, fy, &l, col);
         fy += small * 1.3;
     }
@@ -206,30 +178,14 @@ mod tests {
     fn sheet_has_paper_size_and_exact_photo_cells() {
         let spec = by_id("fr").unwrap();
         let k = 300.0 / 25.4;
-        let photo = RgbImage::from_pixel(
-            (35.0 * k) as u32,
-            (45.0 * k) as u32,
-            image::Rgb([10, 200, 10]),
-        );
+        let photo = RgbImage::from_pixel((35.0 * k) as u32, (45.0 * k) as u32, image::Rgb([10, 200, 10]));
         let report = Report {
             spec: "fr",
             status: Status::Pass,
-            checks: vec![Check {
-                id: "x",
-                label: "Head size",
-                status: Status::Pass,
-                detail: String::new(),
-            }],
+            checks: vec![Check { id: "x", label: "Head size", status: Status::Pass, detail: String::new() }],
         };
         for (paper, w, h) in [(Paper::Cm10x15, 1772, 1181), (Paper::In4x6, 1800, 1200)] {
-            let img = sheet(
-                &photo,
-                spec,
-                paper,
-                300.0,
-                &report,
-                &SheetText { date: "2026-10-05" },
-            );
+            let img = sheet(&photo, spec, paper, 300.0, &report, &SheetText { date: "2026-10-05" });
             assert_eq!((img.width(), img.height()), (w, h));
             // Six green cells.
             let green = img.pixels().filter(|p| p.0 == [10, 200, 10]).count();

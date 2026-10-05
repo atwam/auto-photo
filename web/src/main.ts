@@ -8,8 +8,8 @@ const MODELS_BYTES = 15_750_000; // approximate, for the progress bar
 const PREVIEW_DPI = 400;
 const PHOTO_DPI = 600;
 const SPEC_LABELS: Record<string, string> = { icao: "EU / ICAO", fr: "France", uk: "United Kingdom", de: "Germany" };
-const NO_TONE: Tone = { white_balance: 0, auto_exposure: 0, brightness_ev: 0, background: 0, background_color: null };
-const DEFAULT_TONE: Tone = { white_balance: 1, auto_exposure: 1, brightness_ev: 0, background: 1, background_color: null };
+const NO_TONE: Tone = { white_balance: 0, temperature: 0, auto_exposure: 0, brightness_ev: 0, background: 0, background_color: null };
+const DEFAULT_TONE: Tone = { white_balance: 1, temperature: 0, auto_exposure: 1, brightness_ev: 0, background: 1, background_color: null };
 const DEFAULT_ADJUST: Adjust = { dx_mm: 0, dy_mm: 0, zoom: 1, rotate_deg: 0 };
 const BG_SWATCHES: { name: string; rgb: [number, number, number]; white?: boolean }[] = [
   { name: "Light grey", rgb: [224, 224, 222] },
@@ -377,7 +377,7 @@ function renderSwatches() {
 const SLIDERS: [string, (v: number) => void, () => number][] = [
   ["s-bg", (v) => (state.tone.background = v), () => state.tone.background],
   ["s-bright", (v) => (state.tone.brightness_ev = v), () => state.tone.brightness_ev],
-  ["s-wb", (v) => (state.tone.white_balance = v), () => state.tone.white_balance],
+  ["s-temp", (v) => (state.tone.temperature = v), () => state.tone.temperature],
   ["s-exp", (v) => (state.tone.auto_exposure = v), () => state.tone.auto_exposure],
   ["s-zoom", (v) => (state.adjust.zoom = v), () => state.adjust.zoom],
   ["s-dy", (v) => (state.adjust.dy_mm = v), () => state.adjust.dy_mm],
@@ -564,11 +564,11 @@ $("btn-restart").onclick = () => show("start");
 
 // ----------------------------------------------------------------- input ---
 
-$<HTMLInputElement>("file-input").addEventListener("change", async (e) => {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = "";
-  if (!file) return;
+async function openFile(file: File) {
+  if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(file.name)) {
+    toast("That doesn't look like an image file.", true);
+    return;
+  }
   try {
     const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
     const c = fitCanvas(bmp);
@@ -577,9 +577,52 @@ $<HTMLInputElement>("file-input").addEventListener("change", async (e) => {
   } catch (err) {
     toast(`Could not open this image: ${err instanceof Error ? err.message : err}`, true);
   }
+}
+
+$<HTMLInputElement>("file-input").addEventListener("change", (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (file) void openFile(file);
 });
 
-const camera = new Camera();
+// Drag and drop: while a file is dragged over the window, the two start
+// buttons turn into a drop zone. Dropping anywhere on the page works.
+const actions = $("start-actions");
+let dragDepth = 0;
+const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+const startActive = () => $("screen-start").classList.contains("active");
+window.addEventListener("dragenter", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  if (startActive() && !state.busy) actions.classList.add("dragging");
+});
+window.addEventListener("dragover", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); // allow dropping (otherwise the browser opens the file)
+  const over = actions.contains(e.target as Node);
+  actions.classList.toggle("over", over);
+  e.dataTransfer!.dropEffect = startActive() && !state.busy ? "copy" : "none";
+});
+window.addEventListener("dragleave", (e) => {
+  if (!hasFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) actions.classList.remove("dragging", "over");
+});
+window.addEventListener("drop", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  actions.classList.remove("dragging", "over");
+  const file = e.dataTransfer!.files[0];
+  if (file && startActive() && !state.busy) void openFile(file);
+});
+
+const camera = new Camera(async (bitmap) => {
+  await ready;
+  return call<"detected">({ type: "detect", id: nextId++, bitmap }, [bitmap]);
+});
 $("btn-camera").onclick = async () => {
   show("camera");
   try {

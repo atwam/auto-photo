@@ -36,13 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ROI: 3:4 box centred slightly above the face, face ~1/3 of its height.
         let scale = face_h * 3.2 / MATTE_H as f32;
         let c = fh.mid(chin);
-        let roi = Affine::crop(
-            Point::new(c.x, c.y + face_h * 0.3),
-            MATTE_W as f32,
-            MATTE_H as f32,
-            scale,
-            angle,
-        );
+        let roi = Affine::crop(Point::new(c.x, c.y + face_h * 0.3), MATTE_W as f32, MATTE_H as f32, scale, angle);
         let t = Instant::now();
         let matte = segment::matte(&models, &img, roi)?;
         let t_mat = t.elapsed();
