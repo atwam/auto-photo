@@ -1,0 +1,10 @@
+[package]
+name = "photo-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+image.workspace = true
+tract-onnx.workspace = true
+serde.workspace = true
