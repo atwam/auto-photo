@@ -148,17 +148,30 @@ impl Portrait {
     }
 
     /// Render the print sheet: six photos plus the seal.
-    pub fn sheet(&self, spec: &str, opts: JsValue, paper: &str, date: &str) -> Result<Rendered, JsError> {
+    /// `strings`: optional localised sheet text (see `SheetText`), as an object of key → string.
+    pub fn sheet(
+        &self,
+        spec: &str,
+        opts: JsValue,
+        paper: &str,
+        date: &str,
+        strings: JsValue,
+    ) -> Result<Rendered, JsError> {
         let spec = find_spec(spec)?;
         let opts: RenderOpts = parse_opts(opts)?;
         let paper = match paper {
             "4x6" => Paper::In4x6,
             _ => Paper::Cm10x15,
         };
+        let strings: std::collections::HashMap<String, String> = if strings.is_undefined() || strings.is_null() {
+            Default::default()
+        } else {
+            serde_wasm_bindgen::from_value(strings).map_err(err)?
+        };
         let dpi = opts.dpi.unwrap_or(300.0);
         let a = self.analysis()?;
         let p = produce(&self.img, a, spec, opts.adjust.unwrap_or_default(), &opts.tone.unwrap_or_default(), dpi);
-        let img = sheet(&to_u8(&p.photo), spec, paper, dpi, &p.report, &SheetText { date });
+        let img = sheet(&to_u8(&p.photo), spec, paper, dpi, &p.report, &SheetText { date, strings });
         Ok(Rendered::new(img, serde_json::json!({ "report": p.report }).to_string()))
     }
 }

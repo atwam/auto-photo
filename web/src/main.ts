@@ -1,23 +1,29 @@
 import { Camera } from "./camera";
-import type { Adjust, Face, RenderInfo, RenderOpts, Req, Res, Spec, Status, Tone } from "./protocol";
+import { initLang, num, setLang, t, tn, type Key, type Lang } from "./i18n";
+import type { Adjust, Check, Face, RenderInfo, RenderOpts, Req, Res, Spec, Status, Tone } from "./protocol";
 import { Stage, ease, lerpView, scanWhile, tween } from "./stage";
+
+initLang();
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const MAX_SIDE = 2400;
 const MODELS_BYTES = 15_750_000; // approximate, for the progress bar
 const PREVIEW_DPI = 400;
 const PHOTO_DPI = 600;
-const SPEC_LABELS: Record<string, string> = { icao: "EU / ICAO", fr: "France", uk: "United Kingdom", de: "Germany" };
 const NO_TONE: Tone = { white_balance: 0, temperature: 0, auto_exposure: 0, brightness_ev: 0, background: 0, background_color: null };
 const DEFAULT_TONE: Tone = { white_balance: 1, temperature: 0, auto_exposure: 1, brightness_ev: 0, background: 1, background_color: null };
 const DEFAULT_ADJUST: Adjust = { dx_mm: 0, dy_mm: 0, zoom: 1, rotate_deg: 0 };
-const BG_SWATCHES: { name: string; rgb: [number, number, number]; white?: boolean }[] = [
-  { name: "Light grey", rgb: [224, 224, 222] },
-  { name: "Cool grey", rgb: [218, 222, 226] },
-  { name: "Cream", rgb: [234, 228, 214] },
-  { name: "Light blue", rgb: [212, 224, 236] },
-  { name: "Off-white", rgb: [242, 242, 240], white: true },
+const BG_SWATCHES: { name: Key; rgb: [number, number, number]; white?: boolean }[] = [
+  { name: "swatch.lightgrey", rgb: [224, 224, 222] },
+  { name: "swatch.coolgrey", rgb: [218, 222, 226] },
+  { name: "swatch.cream", rgb: [234, 228, 214] },
+  { name: "swatch.lightblue", rgb: [212, 224, 236] },
+  { name: "swatch.offwhite", rgb: [242, 242, 240], white: true },
 ];
+
+const specChip = (id: string) => t(`spec.chip.${id}` as Key);
+const specName = (id: string) => t(`spec.name.${id}` as Key);
+const specNotes = (id: string) => t(`spec.notes.${id}` as Key).split("\n").filter(Boolean);
 
 // ---------------------------------------------------------------- worker ---
 
@@ -70,22 +76,37 @@ function currentSpec(): Spec {
   return state.specs.find((s) => s.id === state.spec) ?? state.specs[0];
 }
 
+// Model loading status, kept as data so it can be re-rendered on language change.
+let models: { state: "loading" | "ready" | "failed"; loaded: number; error?: string } = { state: "loading", loaded: 0 };
+
 const ready = call<"ready">({ type: "init" }).then((r) => {
   state.specs = r.specs;
   if (!state.specs.some((s) => s.id === state.spec)) state.spec = "icao";
   renderSpecPicker($("spec-picker"));
-  const ms = $("model-status");
-  ms.classList.add("ready");
-  ms.querySelector(".txt")!.textContent = "Ready — works offline from now on";
+  models = { state: "ready", loaded: models.loaded };
+  paintModelStatus();
 });
 ready.catch((e) => {
-  $("model-status").querySelector(".txt")!.textContent = `Could not load models: ${e.message}`;
+  models = { state: "failed", loaded: models.loaded, error: e.message };
+  paintModelStatus();
 });
 
 function onModelProgress(loaded: number) {
-  const pct = Math.min(100, (loaded / MODELS_BYTES) * 100);
-  ($("model-status").querySelector(".bar span") as HTMLElement).style.width = `${pct}%`;
-  $("model-status").querySelector(".txt")!.textContent = `Downloading face models… ${(loaded / 1e6).toFixed(1)} MB`;
+  models.loaded = loaded;
+  paintModelStatus();
+}
+
+function paintModelStatus() {
+  const ms = $("model-status");
+  const txt = ms.querySelector(".txt")!;
+  ms.classList.toggle("ready", models.state === "ready");
+  if (models.state === "ready") txt.textContent = t("models.ready");
+  else if (models.state === "failed") txt.textContent = t("models.failed", { msg: models.error ?? "" });
+  else if (models.loaded > 0) {
+    const pct = Math.min(100, (models.loaded / MODELS_BYTES) * 100);
+    (ms.querySelector(".bar span") as HTMLElement).style.width = `${pct}%`;
+    txt.textContent = t("models.downloading", { mb: num(models.loaded / 1e6) });
+  }
 }
 
 // --------------------------------------------------------------- helpers ---
@@ -135,8 +156,8 @@ function renderSpecPicker(el: HTMLElement, onChange?: () => void) {
   for (const s of state.specs) {
     const b = document.createElement("button");
     b.className = "chip" + (s.id === state.spec ? " on" : "");
-    b.textContent = SPEC_LABELS[s.id] ?? s.name;
-    b.title = s.name;
+    b.textContent = specChip(s.id);
+    b.title = specName(s.id);
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(s.id === state.spec));
     b.onclick = () => {
@@ -174,21 +195,14 @@ function matteOverlay(alpha: Uint8Array, w: number, h: number): HTMLCanvasElemen
 
 // ------------------------------------------------------------ processing ---
 
-const STEPS = [
-  ["face", "Finding your face"],
-  ["mesh", "Mapping 478 landmarks"],
-  ["matte", "Separating you from the background"],
-  ["measure", "Measuring crown, chin & eye line"],
-  ["crop", "Straightening & cropping"],
-  ["tone", "Balancing white & exposure"],
-  ["bg", "Cleaning the background"],
-  ["check", "Checking the rules"],
-] as const;
-type StepId = (typeof STEPS)[number][0];
+const STEPS = ["face", "mesh", "matte", "measure", "crop", "tone", "bg", "check"] as const;
+type StepId = (typeof STEPS)[number];
 
 function stepUi() {
   const ol = $("steps");
-  ol.innerHTML = STEPS.map(([id, label]) => `<li data-step="${id}"><span class="ico"></span><span>${label}<small></small></span></li>`).join("");
+  ol.innerHTML = STEPS.map(
+    (id) => `<li data-step="${id}"><span class="ico"></span><span><span data-i18n="step.${id}">${t(`step.${id}` as Key)}</span><small></small></span></li>`,
+  ).join("");
   const li = (id: StepId) => ol.querySelector(`[data-step="${id}"]`) as HTMLElement;
   return {
     start: (id: StepId) => li(id).classList.add("active"),
@@ -222,14 +236,14 @@ async function processPhoto(input: HTMLCanvasElement) {
   const spec = () => currentSpec();
 
   try {
-    caption.textContent = "LOADING MODELS";
+    caption.textContent = t("stage.loading");
     await scanWhile(stage, "", ready, 300);
 
     // 1. Face.
     steps.start("face");
-    caption.textContent = `INPUT ${src.width}×${src.height}`;
+    caption.textContent = t("stage.input", { w: src.width, h: src.height });
     const bitmap = await createImageBitmap(src);
-    const located = await scanWhile(stage, "DETECTING FACE", call<"located">({ type: "locate", bitmap }, [bitmap]));
+    const located = await scanWhile(stage, t("stage.detecting"), call<"located">({ type: "locate", bitmap }, [bitmap]));
     stage.face = located.face;
     await tween(550, (t) => (stage!.bracket = t));
     steps.done("face");
@@ -238,13 +252,13 @@ async function processPhoto(input: HTMLCanvasElement) {
     steps.start("mesh");
     await tween(1000, (t) => (stage!.meshShown = t));
     const rollDeg = (located.face.head.roll * 180) / Math.PI;
-    steps.done("mesh", `head tilt ${rollDeg.toFixed(1)}°`);
+    steps.done("mesh", t("step.note.tilt", { deg: num(rollDeg) }));
 
     // 3. Matte.
     steps.start("matte");
     const ms = Math.min(1, 900 / Math.max(src.width, src.height));
     const mw = Math.round(src.width * ms), mh = Math.round(src.height * ms);
-    const seg = await scanWhile(stage, "SEGMENTING", call<"segmented">({ type: "segment", width: mw, height: mh }));
+    const seg = await scanWhile(stage, t("stage.segmenting"), call<"segmented">({ type: "segment", width: mw, height: mh }));
     stage.face = seg.face;
     state.face = seg.face;
     stage.matte = matteOverlay(seg.matte, mw, mh);
@@ -280,22 +294,23 @@ async function processPhoto(input: HTMLCanvasElement) {
     });
     stage.face = null;
     stage.matte = null;
-    caption.textContent = `${s.width_mm}×${s.height_mm} MM · HEAD ${raw.info.placement.head_mm.toFixed(1)} MM`;
-    steps.done("crop", `${(-rollDeg).toFixed(1)}° rotation, ${s.width_mm}×${s.height_mm} mm`);
+    caption.textContent = t("stage.frame", { w: s.width_mm, h: s.height_mm, mm: num(raw.info.placement.head_mm) });
+    steps.done("crop", t("step.note.crop", { deg: num(-rollDeg), w: s.width_mm, h: s.height_mm }));
 
     // 6. Tone pass.
     steps.start("tone");
     const toned = await toneP;
     const ev = toned.info.tone.exposure_ev;
-    const layer1 = { img: toned.canvas, t: 0, label: `EXPOSURE ${ev >= 0 ? "+" : ""}${ev.toFixed(2)} EV` };
+    const evText = `${ev >= 0 ? "+" : ""}${num(ev, 2)}`;
+    const layer1 = { img: toned.canvas, t: 0, label: t("stage.exposure", { ev: evText }) };
     stage.layers.push(layer1);
     await tween(1200, (t) => (layer1.t = ease(t)));
-    steps.done("tone", `${ev >= 0 ? "+" : ""}${ev.toFixed(2)} EV, white balance corrected`);
+    steps.done("tone", t("step.note.tone", { ev: evText }));
 
     // 7. Background pass.
     steps.start("bg");
     const full = await fullP;
-    const layer2 = { img: full.canvas, t: 0, label: "BACKGROUND REPLACED" };
+    const layer2 = { img: full.canvas, t: 0, label: t("stage.bg") };
     stage.layers.push(layer2);
     await tween(1200, (t) => (layer2.t = ease(t)));
     layer1.label = "";
@@ -309,7 +324,7 @@ async function processPhoto(input: HTMLCanvasElement) {
     const rep = full.info.report;
     const fails = rep.checks.filter((c) => c.status === "fail").length;
     const warns = rep.checks.filter((c) => c.status === "warn").length;
-    steps.done("check", fails ? `${fails} problem${fails > 1 ? "s" : ""}` : warns ? `${warns} warning${warns > 1 ? "s" : ""}` : "all passed");
+    steps.done("check", fails ? tn("step.note.problems", fails) : warns ? tn("step.note.warnings", warns) : t("step.note.all_passed"));
 
     state.original = raw.canvas;
     state.rendered = full.canvas;
@@ -317,7 +332,7 @@ async function processPhoto(input: HTMLCanvasElement) {
     await new Promise((r) => setTimeout(r, 500));
     openResult();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = localizeError(e);
     const active = document.querySelector("#steps li.active") as HTMLElement | null;
     if (active) steps.fail(active.dataset.step as StepId, msg);
     stage.scan = null;
@@ -357,16 +372,19 @@ function renderSwatches() {
   const spec = currentSpec();
   const el = $("bg-swatches");
   el.innerHTML = "";
-  const options = [{ name: "Spec default", rgb: spec.background }, ...BG_SWATCHES.filter((s) => !(s.white && spec.white_background_forbidden))];
+  const options = [
+    { name: "swatch.default" as Key, rgb: spec.background },
+    ...BG_SWATCHES.filter((s) => !(s.white && spec.white_background_forbidden)),
+  ];
   for (const o of options) {
     const b = document.createElement("button");
     b.className = "swatch";
-    b.title = o.name;
+    b.title = t(o.name);
     b.style.background = `rgb(${o.rgb.join(",")})`;
-    const isOn = o.name === "Spec default" ? state.tone.background_color === null : state.tone.background_color?.join() === o.rgb.join();
+    const isOn = o.name === "swatch.default" ? state.tone.background_color === null : state.tone.background_color?.join() === o.rgb.join();
     b.classList.toggle("on", isOn);
     b.onclick = () => {
-      state.tone.background_color = o.name === "Spec default" ? null : o.rgb;
+      state.tone.background_color = o.name === "swatch.default" ? null : o.rgb;
       renderSwatches();
       void rerender();
     };
@@ -421,7 +439,7 @@ async function rerender() {
     state.info = full.info;
     paintResult();
   } catch (e) {
-    toast(e instanceof Error ? e.message : String(e), true);
+    toast(localizeError(e), true);
   } finally {
     inflight = false;
     if (queued) {
@@ -446,31 +464,31 @@ function paintResult() {
   v.className = `verdict ${status}`;
   const fails = info.report.checks.filter((c) => c.status === "fail");
   const title: Record<Status, string> = {
-    pass: "Ready to use",
-    warn: "Usable — review the warnings",
-    fail: "Not compliant yet",
+    pass: t("verdict.pass.title"),
+    warn: t("verdict.warn.title"),
+    fail: t("verdict.fail.title"),
   };
   const sub: Record<Status, string> = {
-    pass: `Meets the ${currentSpec().name} checks we can run automatically.`,
-    warn: "Nothing blocking, but double-check the points marked below.",
+    pass: t("verdict.pass.sub", { spec: specName(currentSpec().id) }),
+    warn: t("verdict.warn.sub"),
     fail: fails.some((f) => ["expression", "eyes_open", "facing", "sharpness", "framing"].includes(f.id))
-      ? "Some problems need a new photo — sliders can't fix them."
-      : "Adjust the settings below to fix the remaining issues.",
+      ? t("verdict.fail.retake")
+      : t("verdict.fail.adjust"),
   };
   v.innerHTML = `<div class="badge">${status === "pass" ? "✓" : "!"}</div><div><h3>${title[status]}</h3><p>${sub[status]}</p></div>`;
 
   $("checks").innerHTML = info.report.checks
-    .map((c) => `<li class="${c.status}"><span class="m">${c.status === "pass" ? "✓" : c.status === "warn" ? "!" : "✗"}</span><span>${c.label}<small>${c.detail}</small></span></li>`)
+    .map((c) => `<li class="${c.status}"><span class="m">${c.status === "pass" ? "✓" : c.status === "warn" ? "!" : "✗"}</span><span>${t(`check.${c.id}` as Key)}<small>${checkDetail(c)}</small></span></li>`)
     .join("");
 
   const spec = currentSpec();
-  const notes = [...spec.notes];
-  $("spec-notes").innerHTML = notes
-    .map((n) => `<div class="${!spec.print_accepted && n.includes("printed") ? "alert" : ""}">${n}</div>`)
+  // For specs that refuse printed photos, the first note says so: highlight it.
+  $("spec-notes").innerHTML = specNotes(spec.id)
+    .map((n, i) => `<div class="${!spec.print_accepted && i === 0 ? "alert" : ""}">${n}</div>`)
     .join("");
 
   const k = PHOTO_DPI / 25.4;
-  $("dl-photo-sub").textContent = `${Math.round(spec.width_mm * k)}×${Math.round(spec.height_mm * k)} px · JPEG ${PHOTO_DPI} dpi`;
+  $("dl-photo-sub").textContent = t("dl.photo_sub", { w: Math.round(spec.width_mm * k), h: Math.round(spec.height_mm * k), dpi: PHOTO_DPI });
 }
 
 function drawGuides(info: RenderInfo) {
@@ -508,10 +526,10 @@ function drawGuides(info: RenderInfo) {
   ctx.setLineDash([]);
   ctx.font = `${Math.round(g.width / 34)}px ui-monospace, monospace`;
   ctx.fillStyle = "#0f6e56";
-  ctx.fillText("crown zone", g.width * 0.21, cTop - 4);
-  ctx.fillText("chin", g.width * 0.86, chinY * k + 4);
+  ctx.fillText(t("guides.crown"), g.width * 0.21, cTop - 4);
+  ctx.fillText(t("guides.chin"), g.width * 0.86, chinY * k + 4);
   ctx.fillStyle = "#8a5a00";
-  ctx.fillText("eyes", 6, eTop - 4);
+  ctx.fillText(t("guides.eyes"), 6, eTop - 4);
 }
 
 $("show-guides").addEventListener("change", () => state.info && drawGuides(state.info));
@@ -537,6 +555,7 @@ async function download(kind: "photo" | "sheet") {
       dpi: PHOTO_DPI,
       paper: state.paper,
       date: today(),
+      strings: sheetStrings(),
     });
     const blob = new Blob([r.jpeg as BlobPart], { type: "image/jpeg" });
     const a = document.createElement("a");
@@ -544,9 +563,9 @@ async function download(kind: "photo" | "sheet") {
     a.download = kind === "photo" ? `id-photo-${state.spec}-${today()}.jpg` : `id-photo-sheet-${state.spec}-${state.paper}-${today()}.jpg`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-    if (kind === "sheet") toast(`Print at 100% (no “fit to page”) on ${state.paper === "4x6" ? "4×6 in" : "10×15 cm"} paper.`);
+    if (kind === "sheet") toast(t("toast.print", { paper: t(`paper.${state.paper}`) }));
   } catch (e) {
-    toast(e instanceof Error ? e.message : String(e), true);
+    toast(localizeError(e), true);
   } finally {
     btn.disabled = false;
   }
@@ -566,7 +585,7 @@ $("btn-restart").onclick = () => show("start");
 
 async function openFile(file: File) {
   if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(file.name)) {
-    toast("That doesn't look like an image file.", true);
+    toast(t("toast.not_image"), true);
     return;
   }
   try {
@@ -575,7 +594,7 @@ async function openFile(file: File) {
     bmp.close();
     await processPhoto(c);
   } catch (err) {
-    toast(`Could not open this image: ${err instanceof Error ? err.message : err}`, true);
+    toast(t("toast.open_failed", { msg: localizeError(err) }), true);
   }
 }
 
@@ -631,6 +650,84 @@ $("btn-camera").onclick = async () => {
     else show("start");
   } catch (e) {
     show("start");
-    toast(e instanceof Error ? e.message : String(e), true);
+    toast(localizeError(e), true);
   }
 };
+
+// ------------------------------------------------------------- language ---
+
+/** Localised check detail from its message key and numbers. */
+function checkDetail(c: Check): string {
+  const a = c.args;
+  const range = (v: number) => num(v, Number.isInteger(v) ? 0 : 1);
+  switch (c.msg) {
+    case "head_size":
+    case "eye_line":
+      return t(`msg.${c.msg}`, { 0: num(a[0]), 1: range(a[1]), 2: range(a[2]) });
+    case "centered":
+    case "sharpness":
+      return t(`msg.${c.msg}`, { 0: num(a[0]) });
+    case "facing":
+      return t("msg.facing", { 0: num(a[0], 0), 1: num(a[1]) });
+    case "eyes_open":
+      return t("msg.eyes_open", { 0: num(a[0], 2) });
+    case "resolution":
+    case "framing":
+    case "blown_out":
+      return t(`msg.${c.msg}`, { 0: num(a[0], 0) });
+    case "background": {
+      let s = a[0] >= 0 ? t("msg.bg_variation", { 0: num(a[0], 0) }) : t("msg.bg_plain");
+      if (a[1]) s += ` · ${t("msg.bg_replaced")}`;
+      if (a[2]) s += ` (${t("msg.bg_uk")})`;
+      else if (!a[1] && c.status !== "pass") s += ` · ${t("msg.bg_suggest")}`;
+      return s;
+    }
+    default:
+      return t(`msg.${c.msg}` as Key) ?? c.detail;
+  }
+}
+
+/** Errors come from Rust in English; map the known ones. */
+function localizeError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/no face found/i.test(msg)) return t("err.no_face");
+  const m = /(\d+) faces found/i.exec(msg);
+  if (m) return t("err.multiple", { n: m[1] });
+  if (/camera not available/i.test(msg)) return t("cam.unavailable");
+  return msg;
+}
+
+/** Localised text for the print sheet's seal. */
+function sheetStrings(): Record<string, string> {
+  const out: Record<string, string> = {
+    rim_pass: t("sheet.rim_pass"),
+    rim_warn: t("sheet.rim_warn"),
+    rim_fail: t("sheet.rim_fail"),
+    checked: t("sheet.checked"),
+    print_at: t("sheet.print_at", { paper: t(`paper.${state.paper}`) }),
+    disclaimer: t("sheet.disclaimer"),
+    print_refused: t("sheet.print_refused"),
+    spec_name: specName(state.spec),
+  };
+  for (const id of ["head_size", "eye_line", "centered", "facing", "eyes_open", "expression", "background", "exposure", "sharpness", "resolution", "framing"]) {
+    out[`check.${id}`] = t(`check.${id}` as Key);
+  }
+  return out;
+}
+
+document.querySelectorAll<HTMLAnchorElement>("[data-lang]").forEach((a) =>
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    setLang(a.dataset.lang as Lang);
+  }),
+);
+
+// Re-render everything built in code when the language changes.
+window.addEventListener("langchange", () => {
+  if (state.specs.length) renderSpecPicker($("spec-picker"));
+  paintModelStatus();
+  if ($("screen-result").classList.contains("active")) {
+    renderSpecPickerInResult();
+    paintResult();
+  }
+});

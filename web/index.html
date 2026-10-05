@@ -4,17 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0d10" />
-    <title>Auto Photo</title>
-    <meta name="description" content="Passport and ID photos made entirely on your device." />
+    <title>auto·photo — passport &amp; ID photos made on your device</title>
+    <meta name="description" content="Passport and ID photos made entirely in your browser: automatic crop to the official size, light and background correction, a compliance check and a print-ready 10×15 sheet. Nothing is uploaded." />
+    <!-- hreflang alternates are added at build time -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 30'%3E%3Crect x='2' y='2' width='20' height='26' rx='4' fill='none' stroke='%2349e3c4' stroke-width='3'/%3E%3Ccircle cx='12' cy='12' r='5' fill='%2349e3c4'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand"><span class="brand-mark"></span>auto<span class="dot">·</span>photo</div>
-      <div class="privacy" title="Your photo is processed in this browser tab and never uploaded.">
+      <div class="privacy" title="Your photo is processed in this browser tab and never uploaded." data-i18n-attr="title:privacy.title">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3Z" /></svg>
-        On-device · nothing uploaded
+        <span data-i18n="privacy.badge">On-device · nothing uploaded</span>
       </div>
     </header>
 
@@ -22,39 +23,39 @@
       <!-- 1. Start -->
       <section id="screen-start" class="screen active">
         <div class="hero">
-          <h1>Passport photos,<br /><em>made on your device.</em></h1>
-          <p class="lede">
+          <h1 data-i18n-html="hero.title_html">Passport photos,<br /><em>made on your device.</em></h1>
+          <p class="lede" data-i18n="hero.lede">
             Take or upload a portrait. We find your face, straighten and crop it to the official size,
             fix the light and background, check it against the rules, and give you a print-ready sheet.
           </p>
-          <div class="field-label">Document</div>
+          <div class="field-label" data-i18n="start.document">Document</div>
           <div id="spec-picker" class="chips" role="radiogroup" aria-label="Photo specification"></div>
           <div class="start-actions" id="start-actions">
             <div class="drop-zone" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M4 17v3h16v-3" /></svg>
-              <span>Drop your photo here</span>
+              <span data-i18n="start.drop">Drop your photo here</span>
             </div>
             <button id="btn-camera" class="btn primary big">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
-              Take a photo
+              <span data-i18n="start.take">Take a photo</span>
             </button>
             <label class="btn ghost big">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v4h16v-4" /></svg>
-              Upload a photo
+              <span data-i18n="start.upload">Upload a photo</span>
               <input id="file-input" type="file" accept="image/*" hidden />
             </label>
           </div>
-          <div id="model-status" class="model-status"><span class="bar"><span></span></span><span class="txt">Preparing…</span></div>
+          <div id="model-status" class="model-status"><span class="bar"><span></span></span><span class="txt" data-i18n="start.preparing">Preparing…</span></div>
         </div>
         <aside class="rules-card">
-          <h2>For a photo that passes</h2>
+          <h2 data-i18n="rules.title">For a photo that passes</h2>
           <ul class="rules">
-            <li><b>Neutral face</b>, mouth closed, no smile</li>
-            <li><b>Look straight</b> at the camera, head level</li>
-            <li><b>Eyes visible</b>: open, no glare, hair off the face</li>
-            <li><b>Plain, light background</b>, no shadows behind you</li>
-            <li><b>Even light</b> on the face, no hat or headwear (religious exceptions apply)</li>
-            <li><b>Camera at eye level</b>, about 1–1.5 m away; someone else should take it</li>
+            <li data-i18n-html="rules.1_html"><b>Neutral face</b>, mouth closed, no smile</li>
+            <li data-i18n-html="rules.2_html"><b>Look straight</b> at the camera, head level</li>
+            <li data-i18n-html="rules.3_html"><b>Eyes visible</b>: open, no glare, hair off the face</li>
+            <li data-i18n-html="rules.4_html"><b>Plain, light background</b>, no shadows behind you</li>
+            <li data-i18n-html="rules.5_html"><b>Even light</b> on the face, no hat or headwear (religious exceptions apply)</li>
+            <li data-i18n-html="rules.6_html"><b>Camera at eye level</b>, about 1–1.5 m away; someone else should take it</li>
           </ul>
         </aside>
       </section>
@@ -66,14 +67,14 @@
         <div id="ticker" class="ticker"></div>
         <div id="cam-hint" class="cam-hint" role="status" aria-live="polite"></div>
         <div class="cam-bar">
-          <button id="cam-cancel" class="icon-btn" aria-label="Cancel">
+          <button id="cam-cancel" class="icon-btn" aria-label="Cancel" data-i18n-attr="aria-label:cam.cancel">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></svg>
           </button>
-          <button id="cam-shutter" class="shutter" aria-label="Take photo"><span></span></button>
-          <button id="cam-timer" class="icon-btn" aria-label="3 second timer" aria-pressed="false">
+          <button id="cam-shutter" class="shutter" aria-label="Take photo" data-i18n-attr="aria-label:cam.shutter"><span></span></button>
+          <button id="cam-timer" class="icon-btn" aria-label="3 second timer" data-i18n-attr="aria-label:cam.timer" aria-pressed="false">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9 2h6" /></svg>
           </button>
-          <button id="cam-flip" class="icon-btn" aria-label="Switch camera">
+          <button id="cam-flip" class="icon-btn" aria-label="Switch camera" data-i18n-attr="aria-label:cam.flip">
             <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><path d="M9 13a3 3 0 0 1 5.2-2M15 13a3 3 0 0 1-5.2 2" /></svg>
           </button>
         </div>
@@ -95,8 +96,8 @@
             <canvas id="guides" class="guides"></canvas>
           </div>
           <div class="photo-tools">
-            <label class="toggle"><input id="show-guides" type="checkbox" /> Show guides</label>
-            <label class="toggle"><input id="show-original" type="checkbox" /> Compare original</label>
+            <label class="toggle"><input id="show-guides" type="checkbox" /> <span data-i18n="result.guides">Show guides</span></label>
+            <label class="toggle"><input id="show-original" type="checkbox" /> <span data-i18n="result.compare">Compare original</span></label>
           </div>
         </div>
         <div class="result-side">
@@ -105,38 +106,50 @@
           <div id="spec-notes" class="notes"></div>
 
           <details class="panel" open>
-            <summary>Background &amp; light</summary>
-            <div class="ctl"><label for="s-bg">Background replacement</label><input id="s-bg" type="range" min="0" max="1" step="0.01" value="1" /></div>
-            <div class="ctl"><span class="ctl-label">Background colour</span><div id="bg-swatches" class="swatches"></div></div>
-            <div class="ctl"><label for="s-bright">Brightness</label><input id="s-bright" type="range" min="-1" max="1" step="0.05" value="0" /></div>
-            <div class="ctl"><label for="s-temp">White balance</label>
+            <summary data-i18n="panel.light">Background &amp; light</summary>
+            <div class="ctl"><label for="s-bg" data-i18n="ctl.bg">Background replacement</label><input id="s-bg" type="range" min="0" max="1" step="0.01" value="1" /></div>
+            <div class="ctl"><span class="ctl-label" data-i18n="ctl.bgcolor">Background colour</span><div id="bg-swatches" class="swatches"></div></div>
+            <div class="ctl"><label for="s-bright" data-i18n="ctl.brightness">Brightness</label><input id="s-bright" type="range" min="-1" max="1" step="0.05" value="0" /></div>
+            <div class="ctl"><label for="s-temp" data-i18n="ctl.wb">White balance</label>
               <div class="temp-wrap"><input id="s-temp" class="temp" type="range" min="-1" max="1" step="0.02" value="0" />
-                <div class="temp-labels"><span>Cooler</span><span>Auto</span><span>Warmer</span></div></div></div>
-            <div class="ctl"><label for="s-exp">Auto exposure</label><input id="s-exp" type="range" min="0" max="1" step="0.01" value="1" /></div>
+                <div class="temp-labels"><span data-i18n="ctl.cooler">Cooler</span><span data-i18n="ctl.auto">Auto</span><span data-i18n="ctl.warmer">Warmer</span></div></div></div>
+            <div class="ctl"><label for="s-exp" data-i18n="ctl.exposure">Auto exposure</label><input id="s-exp" type="range" min="0" max="1" step="0.01" value="1" /></div>
           </details>
           <details class="panel">
-            <summary>Framing</summary>
-            <div class="ctl"><label for="s-zoom">Head size</label><input id="s-zoom" type="range" min="0.9" max="1.1" step="0.005" value="1" /></div>
-            <div class="ctl"><label for="s-dy">Up / down</label><input id="s-dy" type="range" min="-4" max="4" step="0.1" value="0" /></div>
-            <div class="ctl"><label for="s-dx">Left / right</label><input id="s-dx" type="range" min="-4" max="4" step="0.1" value="0" /></div>
-            <div class="ctl"><label for="s-rot">Rotation</label><input id="s-rot" type="range" min="-6" max="6" step="0.1" value="0" /></div>
+            <summary data-i18n="panel.framing">Framing</summary>
+            <div class="ctl"><label for="s-zoom" data-i18n="ctl.zoom">Head size</label><input id="s-zoom" type="range" min="0.9" max="1.1" step="0.005" value="1" /></div>
+            <div class="ctl"><label for="s-dy" data-i18n="ctl.updown">Up / down</label><input id="s-dy" type="range" min="-4" max="4" step="0.1" value="0" /></div>
+            <div class="ctl"><label for="s-dx" data-i18n="ctl.leftright">Left / right</label><input id="s-dx" type="range" min="-4" max="4" step="0.1" value="0" /></div>
+            <div class="ctl"><label for="s-rot" data-i18n="ctl.rotation">Rotation</label><input id="s-rot" type="range" min="-6" max="6" step="0.1" value="0" /></div>
           </details>
-          <button id="btn-reset" class="btn ghost small">Reset adjustments</button>
+          <button id="btn-reset" class="btn ghost small" data-i18n="btn.reset">Reset adjustments</button>
 
           <div class="downloads">
-            <button id="dl-photo" class="btn primary dl"><svg class="dl-ico" viewBox="0 0 28 36" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="33" rx="1.5" /><circle cx="14" cy="14" r="5.5" /><path d="M5 34.5c0-6 4-10 9-10s9 4 9 10" /></svg><span class="lbl">Download digital photo<small id="dl-photo-sub"></small></span></button>
+            <button id="dl-photo" class="btn primary dl"><svg class="dl-ico" viewBox="0 0 28 36" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="33" rx="1.5" /><circle cx="14" cy="14" r="5.5" /><path d="M5 34.5c0-6 4-10 9-10s9 4 9 10" /></svg><span class="lbl"><span data-i18n="dl.photo">Download digital photo</span><small id="dl-photo-sub"></small></span></button>
             <div class="sheet-row">
-              <button id="dl-sheet" class="btn primary dl"><svg class="dl-ico sheet" viewBox="0 0 48 32" aria-hidden="true"><rect x="0.75" y="0.75" width="46.5" height="30.5" rx="1.5" /><g transform="translate(3,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(14,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(25,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(3,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(14,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(25,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><path d="M37 9h7M37 13h7M37 17h5" /></svg><span class="lbl">Download print sheet<small>6 photos · JPEG 300 dpi</small></span></button>
-              <div class="chips small" id="paper-picker" role="radiogroup" aria-label="Paper size">
-                <button class="chip on" data-paper="10x15">10×15 cm</button>
-                <button class="chip" data-paper="4x6">4×6 in</button>
+              <button id="dl-sheet" class="btn primary dl"><svg class="dl-ico sheet" viewBox="0 0 48 32" aria-hidden="true"><rect x="0.75" y="0.75" width="46.5" height="30.5" rx="1.5" /><g transform="translate(3,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(14,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(25,3.0)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(3,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(14,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><g transform="translate(25,16.5)"><rect width="9.5" height="12" rx="0.6" /><circle cx="4.75" cy="4.9" r="2" /><path d="M1.5 12c0-2.4 1.4-4 3.25-4S8 9.6 8 12" /></g><path d="M37 9h7M37 13h7M37 17h5" /></svg><span class="lbl"><span data-i18n="dl.sheet">Download print sheet</span><small data-i18n="dl.sheet_sub">6 photos · JPEG 300 dpi</small></span></button>
+              <div class="chips small" id="paper-picker" role="radiogroup" aria-label="Paper size" data-i18n-attr="aria-label:dl.paper">
+                <button class="chip on" data-paper="10x15" data-i18n="paper.10x15">10×15 cm</button>
+                <button class="chip" data-paper="4x6" data-i18n="paper.4x6">4×6 in</button>
               </div>
             </div>
-            <button id="btn-restart" class="btn ghost">Start over</button>
+            <button id="btn-restart" class="btn ghost" data-i18n="btn.restart">Start over</button>
           </div>
         </div>
       </section>
     </main>
+    <footer class="site-footer">
+      <nav class="langs" aria-label="Language" data-i18n-attr="aria-label:footer.language">
+        <a href="/" data-lang="en" hreflang="en" lang="en">English</a>
+        <a href="/fr/" data-lang="fr" hreflang="fr" lang="fr">Français</a>
+        <a href="/de/" data-lang="de" hreflang="de" lang="de">Deutsch</a>
+        <a href="/es/" data-lang="es" hreflang="es" lang="es">Español</a>
+      </nav>
+      <details class="legal">
+        <summary data-i18n="footer.legal">Legal &amp; privacy</summary>
+        <div class="legal-body" data-i18n-html="footer.legal_html"></div>
+      </details>
+    </footer>
     <div id="toast" class="toast" role="status"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

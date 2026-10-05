@@ -18,9 +18,21 @@ const ROWS: usize = 2;
 const GAP_MM: f32 = 2.0;
 const MARGIN_MM: f32 = 4.0;
 
+/// Text drawn on the sheet. `strings` overrides the English defaults, for
+/// localisation; keys: `rim_pass`, `rim_warn`, `rim_fail`, `spec_name`,
+/// `checked` ({date}), `print_at` ({paper}), `disclaimer`, `print_refused`,
+/// and `check.<id>` for each check label.
+#[derive(Default)]
 pub struct SheetText<'a> {
     /// e.g. "2026-10-05".
     pub date: &'a str,
+    pub strings: std::collections::HashMap<String, String>,
+}
+
+impl SheetText<'_> {
+    fn get<'s>(&'s self, key: &str, default: &'s str) -> &'s str {
+        self.strings.get(key).map(String::as_str).unwrap_or(default)
+    }
 }
 
 fn status_color(s: Status) -> Color {
@@ -111,9 +123,9 @@ fn seal_panel(
     c.ring(cx, cy, r - 0.35 * k, r, color);
     c.ring(cx, cy, r * 0.68 - 0.15 * k, r * 0.68, color);
     let rim = match report.status {
-        Status::Pass => "SPEC CHECKED · SPEC CHECKED",
-        Status::Warn => "CHECK WARNINGS · REVIEW",
-        Status::Fail => "NOT COMPLIANT · RETAKE",
+        Status::Pass => text.get("rim_pass", "SPEC CHECKED · SPEC CHECKED"),
+        Status::Warn => text.get("rim_warn", "CHECK WARNINGS · REVIEW"),
+        Status::Fail => text.get("rim_fail", "NOT COMPLIANT · RETAKE"),
     };
     let rim_size = 2.1 * k;
     let rim_r = r * 0.84 - rim_size * 0.35;
@@ -132,7 +144,7 @@ fn seal_panel(
     // Spec name and checklist.
     let mut ty = cy + r + 3.6 * k;
     let name_size = 2.3 * k;
-    for line in wrap(bold(), name_size, spec.name, pw) {
+    for line in wrap(bold(), name_size, text.get("spec_name", spec.name), pw) {
         c.text(bold(), name_size, px, ty, &line, INK);
         ty += name_size * 1.2;
     }
@@ -145,24 +157,26 @@ fn seal_panel(
             Status::Pass => c.tick(px, ty - icon * 0.85, icon, 0.22 * k, col),
             _ => c.bang(px, ty - icon * 0.9, icon, 0.22 * k, col),
         }
-        c.text(regular(), item, px + icon * 1.25, ty, chk.label, INK);
+        let label = text.get(&format!("check.{}", chk.id), chk.label);
+        c.text(regular(), item, px + icon * 1.25, ty, label, INK);
         ty += item * 1.38;
     }
 
     // Footer, anchored to the bottom of the panel.
     let small = 1.6 * k;
     let mut footer = vec![
-        format!("Checked {}", text.date),
-        format!("Print at 100% on {} — no scaling.", paper.label()),
-        "Automated self-check, not an official certification.".to_string(),
+        (text.get("checked", "Checked {date}").replace("{date}", text.date), MUTED),
+        (text.get("print_at", "Print at 100% on {paper} — no scaling.").replace("{paper}", paper.label()), MUTED),
+        (text.get("disclaimer", "Automated self-check, not an official certification.").to_string(), MUTED),
     ];
     if !spec.print_accepted {
-        footer.insert(0, "Printed photos are not accepted for this document.".into());
+        let refused = text.get("print_refused", "Printed photos are not accepted for this document.");
+        footer.insert(0, (refused.to_string(), FAIL));
     }
-    let lines: Vec<String> = footer.iter().flat_map(|l| wrap(regular(), small, l, pw)).collect();
+    let lines: Vec<(String, Color)> =
+        footer.iter().flat_map(|(l, col)| wrap(regular(), small, l, pw).into_iter().map(move |w| (w, *col))).collect();
     let mut fy = (y + h) * k - (lines.len() as f32 - 1.0) * small * 1.3;
-    for l in lines {
-        let col = if l.starts_with("Printed photos") { FAIL } else { MUTED };
+    for (l, col) in lines {
         c.text(regular(), small, px, fy, &l, col);
         fy += small * 1.3;
     }
@@ -182,10 +196,18 @@ mod tests {
         let report = Report {
             spec: "fr",
             status: Status::Pass,
-            checks: vec![Check { id: "x", label: "Head size", status: Status::Pass, detail: String::new() }],
+            checks: vec![Check {
+                id: "x",
+                label: "Head size",
+                status: Status::Pass,
+                detail: String::new(),
+                msg: "x",
+                args: vec![],
+            }],
         };
         for (paper, w, h) in [(Paper::Cm10x15, 1772, 1181), (Paper::In4x6, 1800, 1200)] {
-            let img = sheet(&photo, spec, paper, 300.0, &report, &SheetText { date: "2026-10-05" });
+            let img =
+                sheet(&photo, spec, paper, 300.0, &report, &SheetText { date: "2026-10-05", ..Default::default() });
             assert_eq!((img.width(), img.height()), (w, h));
             // Six green cells.
             let green = img.pixels().filter(|p| p.0 == [10, 200, 10]).count();

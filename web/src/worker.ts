@@ -136,7 +136,7 @@ async function handle(req: Req) {
       if (!portrait) throw new Error("no photo");
       const r =
         req.kind === "sheet"
-          ? portrait.sheet(req.spec, { ...req.opts, dpi: 300 }, req.paper, req.date)
+          ? portrait.sheet(req.spec, { ...req.opts, dpi: 300 }, req.paper, req.date, req.strings)
           : portrait.render(req.spec, { ...req.opts, dpi: req.dpi });
       const jpeg = r.jpeg(95, req.kind === "sheet" ? 300 : req.dpi);
       r.free();

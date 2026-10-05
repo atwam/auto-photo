@@ -1,6 +1,7 @@
 // The "lab" animation shown while the photo is processed: scanlines sweep the
 // image, overlays appear as each result arrives, then the view flies into the
 // crop and successive corrected versions are revealed pass by pass.
+import { t as tr } from "./i18n";
 import type { Face, Pt } from "./protocol";
 
 type Source = HTMLCanvasElement | ImageBitmap;
@@ -229,10 +230,10 @@ export class Stage {
     };
     const fw = Math.hypot(h.eye_l.x - h.eye_r.x, h.eye_l.y - h.eye_r.y) * 1.6;
     ctx.globalAlpha = 1 - this.dim;
-    lineAt(h.skull_top, ACCENT, "CROWN", fw);
-    if (h.hair_top) lineAt(h.hair_top, ACCENT_2, "HAIR", fw * 0.8);
-    lineAt(h.eyes, "#f5b74a", "EYES", fw);
-    lineAt(h.chin, ACCENT, "CHIN", fw);
+    lineAt(h.skull_top, ACCENT, tr("stage.crown"), fw);
+    if (h.hair_top) lineAt(h.hair_top, ACCENT_2, tr("stage.hair"), fw * 0.8);
+    lineAt(h.eyes, "#f5b74a", tr("stage.eyes"), fw);
+    lineAt(h.chin, ACCENT, tr("stage.chin"), fw);
     // Vertical axis with the head-height bracket.
     const off = { x: across.x * fw * 1.15, y: across.y * fw * 1.15 };
     const a = this.apply({ x: h.skull_top.x - off.x, y: h.skull_top.y - off.y });

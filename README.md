@@ -89,3 +89,9 @@ chin to the **crown** (top of the skull, not the hair), per ICAO, gov.uk and ANT
 - Glasses glare, headwear and shadows on the face are not detected yet.
 - Background replacement is a digital alteration; some authorities (UK) forbid it. The checker warns.
 - The seal is an automated self-check, not an official certification.
+
+## Languages
+
+English (`/`), French (`/fr/`), German (`/de/`) and Spanish (`/es/`). Strings live in
+`web/src/i18n/messages.ts`; the build pre-renders each language's `index.html` (set `SITE_URL` for
+canonical/hreflang links). On `/`, a saved choice or the browser language redirects client-side.

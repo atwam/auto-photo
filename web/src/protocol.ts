@@ -66,6 +66,9 @@ export interface Check {
   label: string;
   status: Status;
   detail: string;
+  /** Message key and numbers behind `detail`, for localisation. */
+  msg: string;
+  args: number[];
 }
 
 export interface RenderInfo {
@@ -112,6 +115,8 @@ export type Req =
       dpi: number;
       paper: "10x15" | "4x6";
       date: string;
+      /** Localised sheet text (see SheetText in photo-core). */
+      strings: Record<string, string>;
     };
 
 export type Res =

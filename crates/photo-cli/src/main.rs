@@ -104,8 +104,14 @@ fn run() -> Result<bool, Box<dyn std::error::Error>> {
 
         let photo_path = output_path(input, args.out.as_deref(), &format!("{}_photo.jpg", spec.id));
         save_jpeg(&to_u8(&digital.photo), &photo_path, args.dpi)?;
-        let sheet_img =
-            sheet(&to_u8(&print.photo), spec, paper, args.sheet_dpi as f32, report, &SheetText { date: &date });
+        let sheet_img = sheet(
+            &to_u8(&print.photo),
+            spec,
+            paper,
+            args.sheet_dpi as f32,
+            report,
+            &SheetText { date: &date, ..Default::default() },
+        );
         let sheet_path = output_path(input, args.out.as_deref(), &format!("{}_sheet.jpg", spec.id));
         save_jpeg(&sheet_img, &sheet_path, args.sheet_dpi)?;
 

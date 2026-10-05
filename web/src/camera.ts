@@ -1,16 +1,9 @@
 // Camera capture with an oval face guide, rotating rule reminders and live
 // hints (position, distance, tilt, lighting) from the face detector.
+import { t, type Key } from "./i18n";
 import type { LiveFaces } from "./protocol";
 
-const RULES = [
-  "Neutral face — mouth closed, no smile",
-  "Look straight into the camera",
-  "Plain, light background behind you",
-  "Even light, no shadows on the face",
-  "Eyes open and visible, no glare",
-  "Hair away from your eyes and face",
-  "Camera at eye level, about 1 m away",
-];
+const rules = () => t("cam.rules").split("\n");
 
 /** Width of frames sent to the detector. */
 const DETECT_WIDTH = 480;
@@ -24,7 +17,7 @@ interface Oval {
   ry: number;
 }
 
-type Hint = { text: string; ok: boolean; arrow?: "left" | "right" | "up" | "down" };
+type Hint = { key: Key; ok: boolean; arrow?: "left" | "right" | "up" | "down" };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -64,16 +57,17 @@ export class Camera {
     this.active = true;
     window.addEventListener("resize", this.onResize);
     let i = 0;
-    this.ticker.textContent = RULES[0];
+    this.ticker.textContent = rules()[0];
     this.tickTimer = window.setInterval(() => {
       this.ticker.style.opacity = "0";
       window.setTimeout(() => {
-        i = (i + 1) % RULES.length;
-        this.ticker.textContent = RULES[i];
+        const r = rules();
+        i = (i + 1) % r.length;
+        this.ticker.textContent = r[i];
         this.ticker.style.opacity = "1";
       }, 300);
     }, 3200);
-    this.showHint({ text: "Looking for your face…", ok: false });
+    this.showHint({ key: "hint.looking", ok: false });
     void this.hintLoop();
     return new Promise((resolve) => (this.resolve = resolve));
   }
@@ -81,7 +75,7 @@ export class Camera {
   private async start(video: MediaTrackConstraints = { facingMode: this.facing }) {
     this.stopStream();
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error("Camera not available. On a phone, open this page over HTTPS.");
+      throw new Error(t("cam.unavailable"));
     }
     this.stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 2560 }, height: { ideal: 2560 }, ...video },
@@ -169,7 +163,7 @@ export class Camera {
           if (this.active) this.showHint(this.evaluate(res));
         } catch {
           // Detector not ready yet (models still loading): keep the rules only.
-          this.showHint({ text: "Loading face detector…", ok: false });
+          this.showHint({ key: "hint.loading", ok: false });
         }
       }
       // ~6 checks per second at most.
@@ -188,11 +182,11 @@ export class Camera {
   }
 
   private evaluate(r: LiveFaces): Hint {
-    if (!r.faces.length) return { text: "Can't see a face — look at the camera", ok: false };
+    if (!r.faces.length) return { key: "hint.no_face", ok: false };
     const main = r.faces[0];
     const area = (f: typeof main) => f.bbox.w * f.bbox.h;
     if (r.faces.filter((f) => area(f) > area(main) * 0.2).length > 1) {
-      return { text: "Only one person in the picture", ok: false };
+      return { key: "hint.several", ok: false };
     }
     const { cx, cy, ry } = this.geom;
     const b = main.bbox;
@@ -200,38 +194,38 @@ export class Camera {
     const faceH = b.h * c.s;
     // YuNet's box spans brows to chin: about 0.72 of the oval (crown to chin).
     const size = faceH / (2 * ry * 0.72);
-    if (size < 0.82) return { text: "Move closer", ok: false };
-    if (size > 1.2) return { text: "Move back a little", ok: false };
+    if (size < 0.82) return { key: "hint.closer", ok: false };
+    if (size > 1.2) return { key: "hint.back", ok: false };
     const dx = (c.x - cx) / (2 * ry * 0.74), dy = (c.y - cy) / (2 * ry);
-    if (dx > 0.1) return { text: "Move left", ok: false, arrow: "left" };
-    if (dx < -0.1) return { text: "Move right", ok: false, arrow: "right" };
-    if (dy > 0.08) return { text: "Move up", ok: false, arrow: "up" };
-    if (dy < -0.08) return { text: "Move down", ok: false, arrow: "down" };
+    if (dx > 0.1) return { key: "hint.left", ok: false, arrow: "left" };
+    if (dx < -0.1) return { key: "hint.right", ok: false, arrow: "right" };
+    if (dy > 0.08) return { key: "hint.up", ok: false, arrow: "up" };
+    if (dy < -0.08) return { key: "hint.down", ok: false, arrow: "down" };
     const [le, re, nose] = main.kps;
     const roll = (Math.atan2(re.y - le.y, re.x - le.x) * 180) / Math.PI;
-    if (Math.abs(roll) > 6) return { text: "Keep your head straight", ok: false };
+    if (Math.abs(roll) > 6) return { key: "hint.straight", ok: false };
     const eyeDist = Math.hypot(re.x - le.x, re.y - le.y);
     const yaw = (nose.x - (le.x + re.x) / 2) / eyeDist;
-    if (Math.abs(yaw) > 0.18) return { text: "Turn to face the camera", ok: false };
+    if (Math.abs(yaw) > 0.18) return { key: "hint.face", ok: false };
     if (r.light) {
-      if (r.light.mean < 0.22) return { text: "Too dark — find more light", ok: false };
-      if (r.light.mean > 0.9) return { text: "Too bright — avoid direct light", ok: false };
+      if (r.light.mean < 0.22) return { key: "hint.dark", ok: false };
+      if (r.light.mean > 0.9) return { key: "hint.bright", ok: false };
       const uneven = Math.abs(r.light.left - r.light.right) / r.light.mean;
-      if (uneven > 0.35) return { text: "Light is uneven — face the light", ok: false };
+      if (uneven > 0.35) return { key: "hint.uneven", ok: false };
     }
-    return { text: "Great — hold still", ok: true };
+    return { key: "hint.ok", ok: true };
   }
 
   private showHint(h: Hint) {
     // Debounce changes so the hint doesn't flicker between states.
     const now = performance.now();
-    if (h.text !== this.lastHint) {
-      this.lastHint = h.text;
+    if (h.key !== this.lastHint) {
+      this.lastHint = h.key;
       this.hintSince = now;
     }
     if (now - this.hintSince < 250 && this.hintEl.textContent) return;
     const arrows = { left: "←", right: "→", up: "↑", down: "↓" };
-    this.hintEl.innerHTML = h.arrow ? `<span class="arrow">${arrows[h.arrow]}</span>${h.text}` : h.text;
+    this.hintEl.innerHTML = h.arrow ? `<span class="arrow">${arrows[h.arrow]}</span>${t(h.key)}` : t(h.key);
     this.hintEl.classList.toggle("ok", h.ok);
     this.oval.classList.toggle("ok", h.ok);
     $("cam-shutter").classList.toggle("ready", h.ok);

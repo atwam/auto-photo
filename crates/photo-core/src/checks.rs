@@ -20,9 +20,13 @@ pub enum Status {
 #[derive(Clone, Debug, Serialize)]
 pub struct Check {
     pub id: &'static str,
+    /// English label and detail (CLI, logs).
     pub label: &'static str,
     pub status: Status,
     pub detail: String,
+    /// Message key and numbers behind `detail`, so UIs can localise it.
+    pub msg: &'static str,
+    pub args: Vec<f32>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -33,7 +37,15 @@ pub struct Report {
 }
 
 fn check(id: &'static str, label: &'static str, status: Status, detail: String) -> Check {
-    Check { id, label, status, detail }
+    Check { id, label, status, detail, msg: id, args: Vec::new() }
+}
+
+impl Check {
+    fn with(mut self, msg: &'static str, args: &[f32]) -> Check {
+        self.msg = msg;
+        self.args = args.to_vec();
+        self
+    }
 }
 
 fn grade(v: f32, warn: f32, fail: f32) -> Status {
@@ -60,51 +72,66 @@ pub fn run(
 
     // Geometry.
     let (lo, hi) = (spec.head_min_mm, spec.head_max_mm);
-    c.push(check(
-        "head_size",
-        "Head size",
-        if p.head_mm >= lo && p.head_mm <= hi { Status::Pass } else { Status::Fail },
-        format!("{:.1} mm chin to crown (allowed {lo}–{hi} mm)", p.head_mm),
-    ));
+    c.push(
+        check(
+            "head_size",
+            "Head size",
+            if p.head_mm >= lo && p.head_mm <= hi { Status::Pass } else { Status::Fail },
+            format!("{:.1} mm chin to crown (allowed {lo}–{hi} mm)", p.head_mm),
+        )
+        .with("head_size", &[p.head_mm, lo, hi]),
+    );
     let (elo, ehi) = (spec.eyes_min_mm, spec.eyes_max_mm);
     let e = p.eyes_from_bottom_mm;
-    c.push(check(
-        "eye_line",
-        "Eye position",
-        if e >= elo && e <= ehi { Status::Pass } else { Status::Fail },
-        format!("eyes {e:.1} mm above bottom edge (allowed {elo}–{ehi} mm)"),
-    ));
+    c.push(
+        check(
+            "eye_line",
+            "Eye position",
+            if e >= elo && e <= ehi { Status::Pass } else { Status::Fail },
+            format!("eyes {e:.1} mm above bottom edge (allowed {elo}–{ehi} mm)"),
+        )
+        .with("eye_line", &[e, elo, ehi]),
+    );
     let off = p.center_offset_mm.abs();
-    c.push(check("centered", "Head centred", grade(off, 1.0, 2.0), format!("{off:.1} mm off centre")));
+    c.push(
+        check("centered", "Head centred", grade(off, 1.0, 2.0), format!("{off:.1} mm off centre"))
+            .with("centered", &[off]),
+    );
 
     // Pose: yaw from eye-to-cheek asymmetry; roll is corrected so only report it.
     let dr = pts[mesh::R_IRIS].dist(pts[mesh::CHEEK_R]);
     let dl = pts[mesh::L_IRIS].dist(pts[mesh::CHEEK_L]);
     let yaw = (dr - dl).abs() / (dr + dl);
-    c.push(check(
-        "facing",
-        "Facing the camera",
-        grade(yaw, 0.08, 0.15),
-        format!("asymmetry {:.0}%, tilt corrected by {:.1}°", yaw * 100.0, a.head.roll.to_degrees()),
-    ));
+    c.push(
+        check(
+            "facing",
+            "Facing the camera",
+            grade(yaw, 0.08, 0.15),
+            format!("asymmetry {:.0}%, tilt corrected by {:.1}°", yaw * 100.0, a.head.roll.to_degrees()),
+        )
+        .with("facing", &[yaw * 100.0, a.head.roll.to_degrees()]),
+    );
 
     // Eyes open: lid opening relative to eye width.
     let ear = |up: usize, low: usize, a: usize, b: usize| pts[up].dist(pts[low]) / pts[a].dist(pts[b]);
     let ear_r = ear(mesh::R_EYE_UPPER, mesh::R_EYE_LOWER, mesh::R_EYE_OUTER, mesh::R_EYE_INNER);
     let ear_l = ear(mesh::L_EYE_UPPER, mesh::L_EYE_LOWER, mesh::L_EYE_OUTER, mesh::L_EYE_INNER);
     let ear_min = ear_r.min(ear_l);
-    c.push(check(
-        "eyes_open",
-        "Eyes open",
-        if ear_min < 0.12 {
-            Status::Fail
-        } else if ear_min < 0.18 {
-            Status::Warn
-        } else {
-            Status::Pass
-        },
-        format!("eye opening {:.2}", ear_min),
-    ));
+    c.push(
+        check(
+            "eyes_open",
+            "Eyes open",
+            if ear_min < 0.12 {
+                Status::Fail
+            } else if ear_min < 0.18 {
+                Status::Warn
+            } else {
+                Status::Pass
+            },
+            format!("eye opening {:.2}", ear_min),
+        )
+        .with("eyes_open", &[ear_min]),
+    );
 
     // Neutral expression: mouth closed and corners not raised.
     let mouth_w = pts[mesh::MOUTH_R].dist(pts[mesh::MOUTH_L]);
@@ -114,16 +141,16 @@ pub fn run(
     // Positive when the corners sit above the lip centre (along the face axis).
     let up = a.head.up;
     let lift = ((corners.x - lip_mid.x) * up.x + (corners.y - lip_mid.y) * up.y) / mouth_w;
-    let (status, detail) = if gap > 0.12 {
-        (Status::Fail, "mouth open".to_string())
+    let (status, msg, detail) = if gap > 0.12 {
+        (Status::Fail, "mouth_open", "mouth open")
     } else if lift > 0.08 || gap > 0.06 {
-        (Status::Fail, "smiling; keep a neutral expression".to_string())
+        (Status::Fail, "smiling", "smiling; keep a neutral expression")
     } else if lift > 0.04 {
-        (Status::Warn, "slight smile".to_string())
+        (Status::Warn, "slight_smile", "slight smile")
     } else {
-        (Status::Pass, "neutral".to_string())
+        (Status::Pass, "neutral", "neutral")
     };
-    c.push(check("expression", "Neutral expression", status, detail));
+    c.push(check("expression", "Neutral expression", status, detail.into()).with(msg, &[]));
 
     // Background, measured on the original pixels.
     let bg: Vec<usize> =
@@ -132,12 +159,14 @@ pub fn run(
     let lum = |i: usize| luma([raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]]);
     let mut status = Status::Pass;
     let mut detail = String::from("plain");
+    let mut variation = -1.0;
     if bg.len() > original.alpha.len() / 50 {
         let mean = bg.iter().map(|&i| lum(i)).sum::<f32>() / bg.len() as f32;
         let sd = (bg.iter().map(|&i| (lum(i) - mean).powi(2)).sum::<f32>() / bg.len() as f32).sqrt();
         let rel = sd / mean.max(1e-3);
         status = grade(rel, 0.12, 0.3);
         detail = format!("original variation {:.0}%", rel * 100.0);
+        variation = rel * 100.0;
     }
     if tone.background >= 0.5 {
         // Replaced: the output is plain, but a busy original leaves edge artefacts.
@@ -150,7 +179,11 @@ pub fn run(
     } else if status != Status::Pass {
         detail.push_str("; consider enabling background replacement");
     }
-    c.push(check("background", "Plain background", status, detail));
+    // args: [variation % (-1 if unknown), replaced, UK alteration warning]
+    let replaced = tone.background >= 0.5;
+    let uk = replaced && spec.id == "uk";
+    let args = [variation, f32::from(u8::from(replaced)), f32::from(u8::from(uk))];
+    c.push(check("background", "Plain background", status, detail).with("background", &args));
 
     // Exposure on the output: clipped or very dark skin.
     let out = output.as_raw();
@@ -161,47 +194,53 @@ pub fn run(
         let mut s = skin_l.clone();
         s.sort_by(f32::total_cmp);
         let median = s[s.len() / 2];
-        let (status, detail) = if clipped > 0.05 {
-            (Status::Fail, format!("{:.0}% of the face is blown out", clipped * 100.0))
+        let (status, msg, detail) = if clipped > 0.05 {
+            (Status::Fail, "blown_out", format!("{:.0}% of the face is blown out", clipped * 100.0))
         } else if median < 0.03 {
-            (Status::Fail, "face too dark".into())
+            (Status::Fail, "too_dark", "face too dark".into())
         } else if clipped > 0.01 || median < 0.06 {
-            (Status::Warn, "exposure borderline".into())
+            (Status::Warn, "exposure_borderline", "exposure borderline".into())
         } else {
-            (Status::Pass, "well exposed".into())
+            (Status::Pass, "well_exposed", "well exposed".into())
         };
-        c.push(check("exposure", "Exposure", status, detail));
+        c.push(check("exposure", "Exposure", status, detail).with(msg, &[clipped * 100.0]));
     }
 
     // Sharpness: Laplacian variance over the face, at the output scale.
     let sharp = laplacian_variance(original, &original.skin);
-    c.push(check(
-        "sharpness",
-        "Sharp focus",
-        if sharp < 2e-5 {
-            Status::Fail
-        } else if sharp < 6e-5 {
-            Status::Warn
-        } else {
-            Status::Pass
-        },
-        format!("detail score {:.1}", sharp * 1e5),
-    ));
+    c.push(
+        check(
+            "sharpness",
+            "Sharp focus",
+            if sharp < 2e-5 {
+                Status::Fail
+            } else if sharp < 6e-5 {
+                Status::Warn
+            } else {
+                Status::Pass
+            },
+            format!("detail score {:.1}", sharp * 1e5),
+        )
+        .with("sharpness", &[sharp * 1e5]),
+    );
 
     // Source resolution: print needs ~300 dpi (11.8 px/mm).
     let ppmm = p.src_px_per_mm;
-    c.push(check(
-        "resolution",
-        "Resolution",
-        if ppmm < 6.0 {
-            Status::Fail
-        } else if ppmm < 11.0 {
-            Status::Warn
-        } else {
-            Status::Pass
-        },
-        format!("{:.0} dpi of source detail", ppmm * 25.4),
-    ));
+    c.push(
+        check(
+            "resolution",
+            "Resolution",
+            if ppmm < 6.0 {
+                Status::Fail
+            } else if ppmm < 11.0 {
+                Status::Warn
+            } else {
+                Status::Pass
+            },
+            format!("{:.0} dpi of source detail", ppmm * 25.4),
+        )
+        .with("resolution", &[ppmm * 25.4]),
+    );
 
     // The frame must lie within the photo; missing pixels under the face
     // (central half, below the eyes) mean the head or shoulders are cut off.
@@ -214,12 +253,15 @@ pub fn run(
         .filter(|&(i, &o)| o && i / w > eye_row && (i % w) > w / 4 && (i % w) < 3 * w / 4)
         .count() as f32
         / original.outside.len() as f32;
-    c.push(check(
-        "framing",
-        "Whole head in photo",
-        if cut > 0.01 { Status::Fail } else { grade(p.outside_fraction, 0.02, 0.15) },
-        format!("{:.0}% of the frame lies outside the original photo", p.outside_fraction * 100.0),
-    ));
+    c.push(
+        check(
+            "framing",
+            "Whole head in photo",
+            if cut > 0.01 { Status::Fail } else { grade(p.outside_fraction, 0.02, 0.15) },
+            format!("{:.0}% of the frame lies outside the original photo", p.outside_fraction * 100.0),
+        )
+        .with("framing", &[p.outside_fraction * 100.0]),
+    );
 
     let status = c.iter().map(|c| c.status).max().unwrap_or(Status::Pass);
     Report { spec: spec.id, status, checks: c }
