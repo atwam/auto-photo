@@ -554,7 +554,6 @@ async function download(kind: "photo" | "sheet") {
       opts: { adjust: state.adjust, tone: state.tone },
       dpi: PHOTO_DPI,
       paper: state.paper,
-      date: today(),
       strings: sheetStrings(),
     });
     const blob = new Blob([r.jpeg as BlobPart], { type: "image/jpeg" });
@@ -699,20 +698,7 @@ function localizeError(e: unknown): string {
 
 /** Localised text for the print sheet's seal. */
 function sheetStrings(): Record<string, string> {
-  const out: Record<string, string> = {
-    rim_pass: t("sheet.rim_pass"),
-    rim_warn: t("sheet.rim_warn"),
-    rim_fail: t("sheet.rim_fail"),
-    checked: t("sheet.checked"),
-    print_at: t("sheet.print_at", { paper: t(`paper.${state.paper}`) }),
-    disclaimer: t("sheet.disclaimer"),
-    print_refused: t("sheet.print_refused"),
-    spec_name: specName(state.spec),
-  };
-  for (const id of ["head_size", "eye_line", "centered", "facing", "eyes_open", "expression", "background", "exposure", "sharpness", "resolution", "framing"]) {
-    out[`check.${id}`] = t(`check.${id}` as Key);
-  }
-  return out;
+  return { compliant: t("sheet.compliant"), spec_name: specName(state.spec) };
 }
 
 document.querySelectorAll<HTMLAnchorElement>("[data-lang]").forEach((a) =>

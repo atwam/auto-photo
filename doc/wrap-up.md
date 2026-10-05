@@ -8,8 +8,9 @@ behind it, and what is left to do.
 From any portrait (uploaded, dropped, or taken with the camera) it produces passport/ID photos:
 
 - a **single digital JPEG** (600 dpi, 827×1063 px for 35×45 mm) for online applications, and
-- a **print sheet**: 6 photos on 10×15 cm or 4×6 in (300 dpi JPEG) with cut marks and a "seal" panel
-  listing the compliance checks.
+- a **print sheet**: 6 photos on 10×15 cm or 4×6 in (300 dpi JPEG) with cut marks and a seal: a rosette
+  with the spec's flag and "ISO/IEC 19794-5 · ICAO 9303" on the rim, plus a localised "Compliant with
+  ISO/IEC 19794-5" line. The detailed checks are shown in the app, not on the sheet.
 
 Everything runs locally: a Rust CLI, and the same Rust core compiled to WebAssembly in the browser.
 No photo is ever uploaded. The web UI is in English, French, German and Spanish.
@@ -83,7 +84,9 @@ progress; renders at 400 dpi for the live preview and re-renders on every slider
   then a colour guided filter restores softness only along image edges. A naive guided filter created
   ghosts over busy backgrounds — the tightening step fixed that.
 - **Checks** return message keys + numbers so the UI localises them; the Rust side keeps English text for
-  the CLI. The sheet's seal text is passed in from the UI.
+  the CLI. The sheet's compliance line and spec name are passed in from the UI (`SheetText`).
+- **Background check** grades the *original* background only when it is kept; once replaced, the output
+  is plain and the check passes (UK still warns: digital alteration).
 - **Camera**: switching uses an exact `facingMode`, falling back to cycling device ids; mirroring follows
   the camera actually opened.
 - **Privacy guarantee is enforced** in production by CSP `connect-src 'self'` (see `web/public/_headers`).

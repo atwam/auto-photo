@@ -38,7 +38,7 @@ impl Canvas {
     }
 
     /// Run `coverage(x, y)` (pixel centre) over a bounding box.
-    fn shade(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: Color, coverage: impl Fn(f32, f32) -> f32) {
+    pub fn shade(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: Color, coverage: impl Fn(f32, f32) -> f32) {
         for y in (y0.floor() as i32)..=(y1.ceil() as i32) {
             for x in (x0.floor() as i32)..=(x1.ceil() as i32) {
                 let a = coverage(x as f32 + 0.5, y as f32 + 0.5);
@@ -123,20 +123,49 @@ impl Canvas {
 
     /// Text centred on the top of a circle, reading clockwise, baseline on radius `r`.
     pub fn text_arc(&mut self, font: &FontRef<'_>, size: f32, cx: f32, cy: f32, r: f32, s: &str, color: Color) {
-        let scaled = font.as_scaled(PxScale::from(size));
         let total = text_width(font, size, s);
-        // Angle measured clockwise from 12 o'clock.
-        let mut along = -total * 0.5;
+        self.text_along(font, size, cx, cy, r, s, -total * 0.5 / r, 0.0, color);
+    }
+
+    /// Text spread evenly around the whole circle (letter-spaced to close the
+    /// loop), starting at 12 o'clock, reading clockwise.
+    pub fn text_circle(&mut self, font: &FontRef<'_>, size: f32, cx: f32, cy: f32, r: f32, s: &str, color: Color) {
+        let n = s.chars().count().max(1) as f32;
+        let circumference = std::f32::consts::TAU * r;
+        let mut size = size;
+        // Shrink if it doesn't fit with a little spacing.
+        while text_width(font, size, s) > circumference * 0.92 && size > 1.0 {
+            size *= 0.95;
+        }
+        let extra = (circumference - text_width(font, size, s)) / n;
+        self.text_along(font, size, cx, cy, r, s, 0.0, extra, color);
+    }
+
+    /// Draw glyphs along a circle starting at angle `start` (radians,
+    /// clockwise from 12 o'clock), adding `extra` px after each glyph.
+    #[allow(clippy::too_many_arguments)]
+    fn text_along(
+        &mut self,
+        font: &FontRef<'_>,
+        size: f32,
+        cx: f32,
+        cy: f32,
+        r: f32,
+        s: &str,
+        start: f32,
+        extra: f32,
+        color: Color,
+    ) {
+        let scaled = font.as_scaled(PxScale::from(size));
+        let mut along = start * r;
         for ch in s.chars() {
             let id = scaled.glyph_id(ch);
             let adv = scaled.h_advance(id);
             let theta = (along + adv * 0.5) / r;
-            along += adv;
-            // Rasterise the glyph upright around its centre-bottom, then rotate.
+            along += adv + extra;
+            // Rasterise the glyph upright, then rotate it into place.
             let g: Glyph = id.with_scale_and_position(size, point(0.0, 0.0));
-            let Some(o) = font.outline_glyph(g) else {
-                continue;
-            };
+            let Some(o) = font.outline_glyph(g) else { continue };
             let b = o.px_bounds();
             let (gw, gh) = (b.width() as usize, b.height() as usize);
             let mut cov = vec![0.0f32; gw * gh];
@@ -192,7 +221,8 @@ pub fn text_width(font: &FontRef<'_>, size: f32, s: &str) -> f32 {
 pub fn wrap(font: &FontRef<'_>, size: f32, s: &str, max_w: f32) -> Vec<String> {
     let mut lines = Vec::new();
     let mut cur = String::new();
-    for word in s.split_whitespace() {
+    // Break on ordinary spaces only, so no-break spaces keep e.g. "ISO/IEC 19794-5" together.
+    for word in s.split(' ').filter(|w| !w.is_empty()) {
         let candidate = if cur.is_empty() { word.to_string() } else { format!("{cur} {word}") };
         if text_width(font, size, &candidate) > max_w && !cur.is_empty() {
             lines.push(std::mem::take(&mut cur));

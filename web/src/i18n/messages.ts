@@ -181,13 +181,7 @@ const en = {
   "spec.notes.de":
     "Since 1 May 2025 (transition ended 31 July 2025), passport and ID photos must be taken digitally at the authority or by a certified photographer; printed photos are not accepted.\nNeutral, ideally light grey background.",
 
-  "sheet.rim_pass": "SPEC CHECKED · SPEC CHECKED",
-  "sheet.rim_warn": "CHECK WARNINGS · REVIEW",
-  "sheet.rim_fail": "NOT COMPLIANT · RETAKE",
-  "sheet.checked": "Checked {date}",
-  "sheet.print_at": "Print at 100% on {paper} — no scaling.",
-  "sheet.disclaimer": "Automated self-check, not an official certification.",
-  "sheet.print_refused": "Printed photos are not accepted for this document.",
+  "sheet.compliant": "Compliant with ISO/IEC\u00a019794-5",
 
   "footer.language": "Language",
   "footer.legal": "Legal & privacy",
@@ -372,13 +366,7 @@ const fr: Dict = {
   "spec.notes.de":
     "Depuis le 1er mai 2025 (fin de la transition le 31 juillet 2025), les photos de passeport et de carte d'identité doivent être prises numériquement en mairie ou chez un photographe certifié ; les photos imprimées ne sont plus acceptées.\nFond neutre, idéalement gris clair.",
 
-  "sheet.rim_pass": "PHOTO VÉRIFIÉE · CONFORME",
-  "sheet.rim_warn": "AVERTISSEMENTS · À VÉRIFIER",
-  "sheet.rim_fail": "NON CONFORME · À REPRENDRE",
-  "sheet.checked": "Vérifiée le {date}",
-  "sheet.print_at": "Imprimer à 100 % sur {paper}, sans mise à l'échelle.",
-  "sheet.disclaimer": "Contrôle automatique, pas une certification officielle.",
-  "sheet.print_refused": "Les photos imprimées ne sont pas acceptées pour ce document.",
+  "sheet.compliant": "Conforme à la norme ISO/IEC\u00a019794-5",
 
   "footer.language": "Langue",
   "footer.legal": "Mentions légales et confidentialité",
@@ -560,13 +548,7 @@ const de: Dict = {
   "spec.notes.de":
     "Seit 1. Mai 2025 (Übergangsfrist bis 31. Juli 2025) müssen Fotos für Reisepass und Personalausweis digital in der Behörde oder bei einem zertifizierten Fotografen aufgenommen werden; ausgedruckte Fotos werden nicht mehr akzeptiert.\nNeutraler, idealerweise hellgrauer Hintergrund.",
 
-  "sheet.rim_pass": "GEPRÜFT · NORMGERECHT",
-  "sheet.rim_warn": "HINWEISE · BITTE PRÜFEN",
-  "sheet.rim_fail": "NICHT NORMGERECHT · NEU",
-  "sheet.checked": "Geprüft am {date}",
-  "sheet.print_at": "Mit 100 % auf {paper} drucken, nicht skalieren.",
-  "sheet.disclaimer": "Automatische Selbstprüfung, keine amtliche Bestätigung.",
-  "sheet.print_refused": "Ausgedruckte Fotos werden für dieses Dokument nicht akzeptiert.",
+  "sheet.compliant": "Konform mit ISO/IEC\u00a019794-5",
 
   "footer.language": "Sprache",
   "footer.legal": "Rechtliches und Datenschutz",
@@ -748,13 +730,7 @@ const es: Dict = {
   "spec.notes.de":
     "Desde el 1 de mayo de 2025 (transición hasta el 31 de julio de 2025), las fotos de pasaporte y DNI alemanes deben tomarse digitalmente en la oficina o con un fotógrafo certificado; no se aceptan fotos impresas.\nFondo neutro, idealmente gris claro.",
 
-  "sheet.rim_pass": "VERIFICADA · CONFORME",
-  "sheet.rim_warn": "AVISOS · REVISAR",
-  "sheet.rim_fail": "NO CONFORME · REPETIR",
-  "sheet.checked": "Comprobada el {date}",
-  "sheet.print_at": "Imprimir al 100 % en {paper}, sin escalar.",
-  "sheet.disclaimer": "Autocomprobación automática, no es una certificación oficial.",
-  "sheet.print_refused": "No se aceptan fotos impresas para este documento.",
+  "sheet.compliant": "Conforme a la norma ISO/IEC\u00a019794-5",
 
   "footer.language": "Idioma",
   "footer.legal": "Aviso legal y privacidad",

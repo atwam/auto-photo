@@ -63,7 +63,8 @@ Commons (US presidential portraits, Einstein); add your own real selfies for tun
 3. `npm run wasm`. The CLI's `--spec` picks it up automatically.
 
 Non-35×45 formats (e.g. US 2×2 in) work with the same pipeline; check that the sheet layout in
-`layout.rs` still fits (it assumes a 3×2 grid plus a seal column).
+`layout.rs` still fits (it assumes a 3×2 grid plus a seal column). The seal's flag is chosen by spec id
+in `layout.rs::flag` (unknown ids fall back to the EU flag): add a case for a new country.
 
 ## Adding a language
 

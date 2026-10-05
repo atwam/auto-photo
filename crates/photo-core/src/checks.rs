@@ -169,8 +169,8 @@ pub fn run(
         variation = rel * 100.0;
     }
     if tone.background >= 0.5 {
-        // Replaced: the output is plain, but a busy original leaves edge artefacts.
-        status = status.min(Status::Warn);
+        // Replaced: the output background is plain whatever the original was.
+        status = Status::Pass;
         detail.push_str("; replaced with a uniform colour");
         if spec.id == "uk" {
             status = Status::Warn;

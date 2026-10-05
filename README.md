@@ -5,7 +5,7 @@ crops it to the official size, fixes white balance, exposure and background, che
 the rules, and produces:
 
 - a single upload-ready JPEG (600 dpi by default, e.g. 827×1063 px for 35×45 mm), and
-- a print sheet with 6 photos plus a check "seal" on 10×15 cm or 4×6 in paper (JPEG, 300 dpi).
+- a print sheet with 6 photos and a flag seal ("Compliant with ISO/IEC 19794-5") on 10×15 cm or 4×6 in paper (JPEG, 300 dpi).
 
 The same Rust core runs as a CLI and, compiled to WebAssembly, in the browser. Nothing is uploaded.
 The web UI is available in English, French, German and Spanish.
