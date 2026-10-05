@@ -1,5 +1,6 @@
 target/
-models/*.onnx
+models/
 node_modules/
 dist/
 testdata/*.jpg
+.venv/

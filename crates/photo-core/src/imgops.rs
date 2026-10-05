@@ -167,13 +167,21 @@ pub fn to_u8(img: &Rgb32FImage) -> RgbImage {
 
 #[inline]
 pub fn srgb_to_linear(v: f32) -> f32 {
-    if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+    if v <= 0.04045 {
+        v / 12.92
+    } else {
+        ((v + 0.055) / 1.055).powf(2.4)
+    }
 }
 
 #[inline]
 pub fn linear_to_srgb(v: f32) -> f32 {
     let v = v.max(0.0);
-    if v <= 0.003_130_8 { v * 12.92 } else { 1.055 * v.powf(1.0 / 2.4) - 0.055 }
+    if v <= 0.003_130_8 {
+        v * 12.92
+    } else {
+        1.055 * v.powf(1.0 / 2.4) - 0.055
+    }
 }
 
 /// Relative luminance of a linear RGB triple.
@@ -196,7 +204,12 @@ pub fn warp_resampled(src: &Rgb32FImage, w: u32, h: u32, m: &Affine) -> Rgb32FIm
         let mut acc = [0.0f32; 3];
         for dy in 0..k {
             for dx in 0..k {
-                let p = src.get_pixel((x * k + dx).min(src.width() - 1), (y * k + dy).min(src.height() - 1)).0;
+                let p = src
+                    .get_pixel(
+                        (x * k + dx).min(src.width() - 1),
+                        (y * k + dy).min(src.height() - 1),
+                    )
+                    .0;
                 for i in 0..3 {
                     acc[i] += p[i];
                 }
@@ -205,6 +218,13 @@ pub fn warp_resampled(src: &Rgb32FImage, w: u32, h: u32, m: &Affine) -> Rgb32FIm
         px.0 = acc.map(|v| v * norm);
     }
     let kf = k as f32;
-    let m = Affine { a: m.a / kf, b: m.b / kf, c: m.c / kf, d: m.d / kf, e: m.e / kf, f: m.f / kf };
+    let m = Affine {
+        a: m.a / kf,
+        b: m.b / kf,
+        c: m.c / kf,
+        d: m.d / kf,
+        e: m.e / kf,
+        f: m.f / kf,
+    };
     warp(&small, w, h, &m)
 }

@@ -20,7 +20,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let t = Instant::now();
         let dets = detect_faces(&models, &img)?;
         let t_det = t.elapsed();
-        let Some(det) = dets.first() else { println!("{path}: no face"); continue };
+        let Some(det) = dets.first() else {
+            println!("{path}: no face");
+            continue;
+        };
         let t = Instant::now();
         let lm = face_landmarks(&models, &img, det)?;
         let t_lm = t.elapsed();
@@ -33,28 +36,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ROI: 3:4 box centred slightly above the face, face ~1/3 of its height.
         let scale = face_h * 3.2 / MATTE_H as f32;
         let c = fh.mid(chin);
-        let roi = Affine::crop(Point::new(c.x, c.y + face_h * 0.3), MATTE_W as f32, MATTE_H as f32, scale, angle);
+        let roi = Affine::crop(
+            Point::new(c.x, c.y + face_h * 0.3),
+            MATTE_W as f32,
+            MATTE_H as f32,
+            scale,
+            angle,
+        );
         let t = Instant::now();
         let matte = segment::matte(&models, &img, roi)?;
         let t_mat = t.elapsed();
-        println!("{path}: {} faces, score {:.2}, presence {:.2}, det {t_det:?} mesh {t_lm:?} matte {t_mat:?}", dets.len(), det.score, lm.presence);
+        println!(
+            "{path}: {} faces, score {:.2}, presence {:.2}, det {t_det:?} mesh {t_lm:?} matte {t_mat:?}",
+            dets.len(),
+            det.score,
+            lm.presence
+        );
 
         let mut out = to_u8(&img);
         let (w, h) = out.dimensions();
         for (x, y, px) in out.enumerate_pixels_mut() {
             let a = matte.at_src(Point::new(x as f32 + 0.5, y as f32 + 0.5));
-            px.0 = [(px.0[0] as f32 * (0.4 + 0.6 * a) + 140.0 * (1.0 - a) * 0.6) as u8, (px.0[1] as f32 * (0.4 + 0.6 * a)) as u8, (px.0[2] as f32 * (0.4 + 0.6 * a)) as u8];
+            px.0 = [
+                (px.0[0] as f32 * (0.4 + 0.6 * a) + 140.0 * (1.0 - a) * 0.6) as u8,
+                (px.0[1] as f32 * (0.4 + 0.6 * a)) as u8,
+                (px.0[2] as f32 * (0.4 + 0.6 * a)) as u8,
+            ];
         }
         let r = (w.max(h) / 400).max(1) as i32;
         let mut dot = |p: Point, col: [u8; 3], r: i32| {
-            for dy in -r..=r { for dx in -r..=r {
-                let (x, y) = (p.x as i32 + dx, p.y as i32 + dy);
-                if x >= 0 && y >= 0 && (x as u32) < w && (y as u32) < h { out.put_pixel(x as u32, y as u32, Rgb(col)); }
-            }}
+            for dy in -r..=r {
+                for dx in -r..=r {
+                    let (x, y) = (p.x as i32 + dx, p.y as i32 + dy);
+                    if x >= 0 && y >= 0 && (x as u32) < w && (y as u32) < h {
+                        out.put_pixel(x as u32, y as u32, Rgb(col));
+                    }
+                }
+            }
         };
-        for p in &lm.points[..468] { dot(*p, [0, 255, 0], r / 2); }
-        for p in det.kps { dot(p, [255, 255, 0], r * 2); }
-        for i in [mesh::CHIN, mesh::FOREHEAD_TOP, mesh::R_IRIS, mesh::L_IRIS] { dot(lm.points[i], [255, 0, 255], r * 3); }
+        for p in &lm.points[..468] {
+            dot(*p, [0, 255, 0], r / 2);
+        }
+        for p in det.kps {
+            dot(p, [255, 255, 0], r * 2);
+        }
+        for i in [mesh::CHIN, mesh::FOREHEAD_TOP, mesh::R_IRIS, mesh::L_IRIS] {
+            dot(lm.points[i], [255, 0, 255], r * 3);
+        }
         let outp = format!("{}.debug.jpg", path.trim_end_matches(".jpg"));
         out.save(&outp)?;
     }

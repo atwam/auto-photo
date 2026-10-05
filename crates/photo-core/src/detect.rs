@@ -24,7 +24,10 @@ pub fn detect_faces(models: &Models, img: &Rgb32FImage) -> Result<Vec<Detection>
     // Letterbox: scale the long side to 640, pad bottom/right with black.
     let scale = YUNET_SIZE as f32 / w.max(h) as f32;
     let m = Affine::crop(
-        Point::new(YUNET_SIZE as f32 * 0.5 / scale, YUNET_SIZE as f32 * 0.5 / scale),
+        Point::new(
+            YUNET_SIZE as f32 * 0.5 / scale,
+            YUNET_SIZE as f32 * 0.5 / scale,
+        ),
         YUNET_SIZE as f32,
         YUNET_SIZE as f32,
         1.0 / scale,
@@ -42,7 +45,10 @@ pub fn detect_faces(models: &Models, img: &Rgb32FImage) -> Result<Vec<Detection>
     });
     let out = run(&models.yunet, input.into_tensor())?;
     if out.len() != 12 {
-        return Err(Error::Model(format!("YuNet: expected 12 outputs, got {}", out.len())));
+        return Err(Error::Model(format!(
+            "YuNet: expected 12 outputs, got {}",
+            out.len()
+        )));
     }
 
     let mut dets = Vec::new();
@@ -53,7 +59,10 @@ pub fn detect_faces(models: &Models, img: &Rgb32FImage) -> Result<Vec<Detection>
         let obj = as_slice(&out[i + 3])?;
         let bbox = as_slice(&out[i + 6])?;
         let kps = as_slice(&out[i + 9])?;
-        if cls.len() != rows * cols || bbox.len() != rows * cols * 4 || kps.len() != rows * cols * 10 {
+        if cls.len() != rows * cols
+            || bbox.len() != rows * cols * 4
+            || kps.len() != rows * cols * 10
+        {
             return Err(Error::Model("YuNet: unexpected output layout".into()));
         }
         let s = stride as f32;
@@ -71,10 +80,18 @@ pub fn detect_faces(models: &Models, img: &Rgb32FImage) -> Result<Vec<Detection>
                 let bh = b[3].exp() * s;
                 let k = &kps[idx * 10..idx * 10 + 10];
                 let pt = |j: usize| {
-                    Point::new((k[2 * j] + c as f32) * s / scale, (k[2 * j + 1] + r as f32) * s / scale)
+                    Point::new(
+                        (k[2 * j] + c as f32) * s / scale,
+                        (k[2 * j + 1] + r as f32) * s / scale,
+                    )
                 };
                 dets.push(Detection {
-                    bbox: Rect { x: (cx - bw / 2.0) / scale, y: (cy - bh / 2.0) / scale, w: bw / scale, h: bh / scale },
+                    bbox: Rect {
+                        x: (cx - bw / 2.0) / scale,
+                        y: (cy - bh / 2.0) / scale,
+                        w: bw / scale,
+                        h: bh / scale,
+                    },
                     score,
                     kps: [pt(0), pt(1), pt(2), pt(3), pt(4)],
                 });
@@ -127,7 +144,11 @@ pub mod mesh {
 
 /// Run the face mesh around a detection, refining the crop once from its own
 /// output like MediaPipe's tracker does.
-pub fn face_landmarks(models: &Models, img: &Rgb32FImage, det: &Detection) -> Result<Landmarks, Error> {
+pub fn face_landmarks(
+    models: &Models,
+    img: &Rgb32FImage,
+    det: &Detection,
+) -> Result<Landmarks, Error> {
     let eye_r = det.kps[0];
     let eye_l = det.kps[1];
     let mut angle = (eye_l.y - eye_r.y).atan2(eye_l.x - eye_r.x);
@@ -156,17 +177,27 @@ pub fn face_landmarks(models: &Models, img: &Rgb32FImage, det: &Detection) -> Re
     Ok(lm)
 }
 
-fn mesh_pass(models: &Models, img: &Rgb32FImage, center: Point, size: f32, angle: f32) -> Result<Landmarks, Error> {
+fn mesh_pass(
+    models: &Models,
+    img: &Rgb32FImage,
+    center: Point,
+    size: f32,
+    angle: f32,
+) -> Result<Landmarks, Error> {
     let n = MESH_SIZE as f32;
     let m = Affine::crop(center, n, n, size / n, angle);
     let crop = warp_resampled(img, MESH_SIZE as u32, MESH_SIZE as u32, &m);
-    let input = tract_ndarray::Array4::from_shape_fn((1, MESH_SIZE, MESH_SIZE, 3), |(_, y, x, c)| {
-        crop.get_pixel(x as u32, y as u32).0[c]
-    });
+    let input =
+        tract_ndarray::Array4::from_shape_fn((1, MESH_SIZE, MESH_SIZE, 3), |(_, y, x, c)| {
+            crop.get_pixel(x as u32, y as u32).0[c]
+        });
     let out = run(&models.face_mesh, input.into_tensor())?;
     let pts = as_slice(&out[0])?;
     if pts.len() != 478 * 3 {
-        return Err(Error::Model(format!("face mesh: expected 1434 values, got {}", pts.len())));
+        return Err(Error::Model(format!(
+            "face mesh: expected 1434 values, got {}",
+            pts.len()
+        )));
     }
     let logit = as_slice(&out[1])?.first().copied().unwrap_or(0.0);
     let s = size / n;
@@ -174,5 +205,9 @@ fn mesh_pass(models: &Models, img: &Rgb32FImage, center: Point, size: f32, angle
         .chunks_exact(3)
         .map(|p| (m.apply(Point::new(p[0], p[1])), p[2] * s))
         .unzip();
-    Ok(Landmarks { points, z, presence: 1.0 / (1.0 + (-logit).exp()) })
+    Ok(Landmarks {
+        points,
+        z,
+        presence: 1.0 / (1.0 + (-logit).exp()),
+    })
 }

@@ -37,7 +37,15 @@ pub fn matte(models: &Models, img: &Rgb32FImage, roi: Affine) -> Result<Matte, E
     let out = run(&models.modnet, input.into_tensor())?;
     let alpha = as_slice(&out[0])?;
     if alpha.len() != MATTE_W * MATTE_H {
-        return Err(Error::Model(format!("MODNet: unexpected output size {}", alpha.len())));
+        return Err(Error::Model(format!(
+            "MODNet: unexpected output size {}",
+            alpha.len()
+        )));
     }
-    Ok(Matte { alpha: alpha.to_vec(), w: MATTE_W as u32, h: MATTE_H as u32, to_src: roi })
+    Ok(Matte {
+        alpha: alpha.to_vec(),
+        w: MATTE_W as u32,
+        h: MATTE_H as u32,
+        to_src: roi,
+    })
 }

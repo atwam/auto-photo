@@ -2,9 +2,13 @@
 //! Pure computation with no I/O so it runs both natively and in wasm.
 
 pub mod detect;
+pub mod geometry;
 pub mod imgops;
 pub mod models;
+pub mod pipeline;
 pub mod segment;
+pub mod spec;
+pub mod tone;
 
 pub use models::{ModelBytes, Models};
 
@@ -22,7 +26,9 @@ impl std::fmt::Display for Error {
             Error::Model(m) => write!(f, "model error: {m}"),
             Error::Image(m) => write!(f, "image error: {m}"),
             Error::NoFace => write!(f, "no face found in the photo"),
-            Error::MultipleFaces(n) => write!(f, "{n} faces found; the photo must show exactly one person"),
+            Error::MultipleFaces(n) => {
+                write!(f, "{n} faces found; the photo must show exactly one person")
+            }
         }
     }
 }

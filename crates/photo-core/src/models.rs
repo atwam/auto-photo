@@ -29,6 +29,8 @@ pub struct Models {
 fn load(bytes: &[u8], shape: &[usize]) -> Result<Plan, Error> {
     let run = || -> TractResult<Plan> {
         tract_onnx::onnx()
+            .with_ignore_value_info(true)
+            .with_ignore_output_shapes(true)
             .model_for_read(&mut std::io::Cursor::new(bytes))?
             .with_input_fact(0, f32::fact(shape).into())?
             .into_optimized()?
@@ -48,9 +50,12 @@ impl Models {
 }
 
 pub(crate) fn run(plan: &Plan, input: Tensor) -> Result<TVec<TValue>, Error> {
-    plan.run(tvec!(input.into())).map_err(|e| Error::Model(format!("{e:#}")))
+    plan.run(tvec!(input.into()))
+        .map_err(|e| Error::Model(format!("{e:#}")))
 }
 
 pub(crate) fn as_slice(v: &TValue) -> Result<&[f32], Error> {
-    v.try_as_plain_ram().and_then(|p| p.as_slice::<f32>()).map_err(|e| Error::Model(format!("{e:#}")))
+    v.try_as_plain_ram()
+        .and_then(|p| p.as_slice::<f32>())
+        .map_err(|e| Error::Model(format!("{e:#}")))
 }
