@@ -8,3 +8,4 @@ license.workspace = true
 image.workspace = true
 tract-onnx.workspace = true
 serde.workspace = true
+ab_glyph = "0.2"

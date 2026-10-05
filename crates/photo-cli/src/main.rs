@@ -1,22 +1,26 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use image::codecs::jpeg::{JpegEncoder, PixelDensity};
-use photo_core::geometry::{Adjust, place};
+use photo_core::checks::Status;
+use photo_core::geometry::Adjust;
 use photo_core::imgops::{to_f32, to_u8};
-use photo_core::pipeline::analyze;
-use photo_core::spec::{self, SPECS};
-use photo_core::tone::{self, ToneParams};
+use photo_core::layout::{SheetText, sheet};
+use photo_core::pipeline::{analyze, produce};
+use photo_core::spec::{self, Paper, SPECS};
+use photo_core::tone::ToneParams;
 use photo_core::{ModelBytes, Models};
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
-/// Turn a portrait into passport/ID photos.
+/// Turn a portrait into passport/ID photos: a single digital photo and a
+/// printable sheet of six.
 #[derive(Parser)]
 #[command(name = "auto-photo", version)]
 struct Args {
     /// Input portrait photo(s).
     #[arg(required = true)]
     inputs: Vec<PathBuf>,
-    /// Photo spec: icao, fr, uk, de.
-    #[arg(short, long, default_value = "icao")]
+    /// Photo spec.
+    #[arg(short, long, default_value = "icao", value_parser = clap::builder::PossibleValuesParser::new(SPECS.iter().map(|s| s.id)))]
     spec: String,
     /// Output directory (defaults to next to each input).
     #[arg(short, long)]
@@ -24,59 +28,140 @@ struct Args {
     /// Directory with yunet.onnx, face_mesh.onnx, modnet.onnx.
     #[arg(long, default_value = "models", env = "AUTO_PHOTO_MODELS")]
     models: PathBuf,
+    /// Print paper for the sheet.
+    #[arg(long, value_enum, default_value_t = PaperArg::Cm10x15)]
+    paper: PaperArg,
     /// Resolution of the single digital photo, in dpi.
     #[arg(long, default_value_t = 600)]
     dpi: u32,
+    /// Resolution of the print sheet, in dpi.
+    #[arg(long, default_value_t = 300)]
+    sheet_dpi: u32,
     /// Background replacement strength, 0 (keep) to 1 (replace).
     #[arg(long, default_value_t = 1.0)]
     background: f32,
     /// Extra brightness in stops.
     #[arg(long, default_value_t = 0.0, allow_negative_numbers = true)]
     brightness: f32,
+    /// Print the full report as JSON.
+    #[arg(long)]
+    json: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[derive(Clone, Copy, ValueEnum)]
+enum PaperArg {
+    #[value(name = "10x15")]
+    Cm10x15,
+    #[value(name = "4x6")]
+    In4x6,
+}
+
+fn main() -> ExitCode {
+    match run() {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::from(2),
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Returns false when any photo failed a check.
+fn run() -> Result<bool, Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let spec = spec::by_id(&args.spec).ok_or_else(|| {
-        format!(
-            "unknown spec '{}'; known: {}",
-            args.spec,
-            SPECS.iter().map(|s| s.id).collect::<Vec<_>>().join(", ")
-        )
-    })?;
+    let spec = spec::by_id(&args.spec).expect("validated by clap");
+    let paper = match args.paper {
+        PaperArg::Cm10x15 => Paper::Cm10x15,
+        PaperArg::In4x6 => Paper::In4x6,
+    };
     let read = |name: &str| {
-        std::fs::read(args.models.join(name))
-            .map_err(|e| format!("{}: {e}", args.models.join(name).display()))
+        let p = args.models.join(name);
+        std::fs::read(&p).map_err(|e| format!("{}: {e} (run scripts/fetch_models.sh)", p.display()))
     };
     let models = Models::load(ModelBytes {
         yunet: &read("yunet.onnx")?,
         face_mesh: &read("face_mesh.onnx")?,
         modnet: &read("modnet.onnx")?,
     })?;
+    let params = ToneParams {
+        background: args.background,
+        brightness_ev: args.brightness,
+        ..Default::default()
+    };
+    let date = today();
+    let mut all_ok = true;
 
     for input in &args.inputs {
         let img = to_f32(&image::open(input)?.to_rgb8());
-        let a = analyze(&models, &img)?;
-        let placement = place(&a.head, spec, Adjust::default(), img.width(), img.height());
-        let ppmm = args.dpi as f32 / 25.4;
-        let frame = tone::render_frame(&img, &a, &placement, ppmm);
-        let params = ToneParams {
-            background: args.background,
-            brightness_ev: args.brightness,
-            ..Default::default()
+        let a = match analyze(&models, &img) {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("{}: {e}", input.display());
+                all_ok = false;
+                continue;
+            }
         };
-        let (photo, report) = tone::apply(&frame, spec.background, &params);
-        let out = output_path(
+        let digital = produce(&img, &a, spec, Adjust::default(), &params, args.dpi as f32);
+        let print = produce(
+            &img,
+            &a,
+            spec,
+            Adjust::default(),
+            &params,
+            args.sheet_dpi as f32,
+        );
+        let report = &digital.report;
+
+        let photo_path = output_path(
             input,
             args.out.as_deref(),
             &format!("{}_photo.jpg", spec.id),
         );
-        save_jpeg(&to_u8(&photo), &out, args.dpi)?;
-        println!("{}: {}", input.display(), out.display());
-        println!("  placement {}", serde_json::to_string(&placement)?);
-        println!("  tone {}", serde_json::to_string(&report)?);
+        save_jpeg(&to_u8(&digital.photo), &photo_path, args.dpi)?;
+        let sheet_img = sheet(
+            &to_u8(&print.photo),
+            spec,
+            paper,
+            args.sheet_dpi as f32,
+            report,
+            &SheetText { date: &date },
+        );
+        let sheet_path = output_path(
+            input,
+            args.out.as_deref(),
+            &format!("{}_sheet.jpg", spec.id),
+        );
+        save_jpeg(&sheet_img, &sheet_path, args.sheet_dpi)?;
+
+        if args.json {
+            let v = serde_json::json!({
+                "input": input, "photo": photo_path, "sheet": sheet_path,
+                "report": report, "placement": digital.placement, "tone": digital.tone,
+            });
+            println!("{}", serde_json::to_string_pretty(&v)?);
+        } else {
+            println!(
+                "{} → {}, {}",
+                input.display(),
+                photo_path.display(),
+                sheet_path.display()
+            );
+            for c in &report.checks {
+                let mark = match c.status {
+                    Status::Pass => "\x1b[32m✓\x1b[0m",
+                    Status::Warn => "\x1b[33m!\x1b[0m",
+                    Status::Fail => "\x1b[31m✗\x1b[0m",
+                };
+                println!("  {mark} {:<22} {}", c.label, c.detail);
+            }
+            for n in spec.notes {
+                println!("  · {n}");
+            }
+        }
+        all_ok &= report.status != Status::Fail;
     }
-    Ok(())
+    Ok(all_ok)
 }
 
 fn output_path(input: &Path, dir: Option<&Path>, suffix: &str) -> PathBuf {
@@ -97,4 +182,22 @@ fn save_jpeg(
     enc.set_pixel_density(PixelDensity::dpi(dpi as u16));
     enc.encode_image(img)?;
     Ok(())
+}
+
+/// Today's UTC date as YYYY-MM-DD.
+fn today() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let z = (secs / 86_400) as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!("{y:04}-{m:02}-{d:02}")
 }

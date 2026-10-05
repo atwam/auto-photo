@@ -1,9 +1,12 @@
 //! Core passport-photo pipeline: detection, geometry, tone, checks, layout.
 //! Pure computation with no I/O so it runs both natively and in wasm.
 
+pub mod checks;
 pub mod detect;
+pub mod draw;
 pub mod geometry;
 pub mod imgops;
+pub mod layout;
 pub mod models;
 pub mod pipeline;
 pub mod segment;
