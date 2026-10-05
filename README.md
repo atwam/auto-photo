@@ -51,6 +51,7 @@ cd web
 npm install
 npm run wasm      # builds the wasm package and copies the models into public/
 npm run dev       # http://localhost:5173
+npm run dev:lan   # HTTPS on 0.0.0.0 (self-signed) for testing the camera from a phone
 npm run build     # static site in web/dist
 ```
 

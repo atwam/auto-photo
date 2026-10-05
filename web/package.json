@@ -6,9 +6,11 @@
     "wasm": "./scripts/build-wasm.sh",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:lan": "HTTPS=1 vite"
   },
   "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.2"
   }
