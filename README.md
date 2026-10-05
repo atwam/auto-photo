@@ -8,6 +8,38 @@ the rules, and produces:
 - a print sheet with 6 photos plus a check "seal" on 10×15 cm or 4×6 in paper (JPEG, 300 dpi).
 
 The same Rust core runs as a CLI and, compiled to WebAssembly, in the browser. Nothing is uploaded.
+The web UI is available in English, French, German and Spanish.
+
+**Documentation:** [doc/](doc/README.md) — [wrap-up](doc/wrap-up.md) (state, architecture, decisions,
+backlog) · [development](doc/development.md) (tools, tuning, adding specs/languages) ·
+[deployment](doc/deployment.md) (how to put it online).
+
+## Quick start
+
+Prerequisites: [Rust](https://rustup.rs) (≥ 1.85), Node.js (≥ 20.19), Python 3.
+
+One-time setup:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129 --locked   # must match Cargo.lock
+./scripts/fetch_models.sh                                   # downloads + converts the models (~16 MB)
+cd web && npm install && npm run wasm                       # builds the wasm package (~1.5 min)
+```
+
+Run the web app locally (from `web/`):
+
+```sh
+npm run dev        # http://localhost:5173
+npm run dev:lan    # https://<your-computer-ip>:5173 — use this to test the camera from a phone
+```
+
+With `dev:lan`, accept the self-signed certificate warning once on the phone (camera access requires
+HTTPS). If the phone can't connect, allow incoming connections for `node` in the macOS firewall. The
+address is printed by Vite on start (`➜ Network: …`).
+
+After changing anything under `crates/`, run `npm run wasm` again (TypeScript/CSS changes reload live).
+To try the production build locally: `npm run build && npm run preview` (http://localhost:4173).
 
 ## Layout
 
@@ -18,6 +50,7 @@ crates/photo-wasm   wasm-bindgen API used by the web app (runs in a Web Worker)
 web/                Vite + TypeScript UI: upload or camera, animated processing, editor, downloads
 models/             ONNX models (not committed; see below)
 scripts/            model download + f16 weight conversion
+doc/                wrap-up, development and deployment guides
 ```
 
 ## Models
@@ -46,17 +79,9 @@ The exit code is 2 when a photo fails a check.
 
 ## Web app
 
-```sh
-cd web
-npm install
-npm run wasm      # builds the wasm package and copies the models into public/
-npm run dev       # http://localhost:5173
-npm run dev:lan   # HTTPS on 0.0.0.0 (self-signed) for testing the camera from a phone
-npm run build     # static site in web/dist
-```
-
-The camera needs HTTPS on phones (localhost is fine on desktop). After the first visit, models are
-cached, so the app works offline.
+Static site built with Vite (see [Quick start](#quick-start)); `npm run build` writes it to `web/dist`.
+After the first visit, models are cached by the browser. To host it, follow
+[doc/deployment.md](doc/deployment.md).
 
 ## Specs
 
