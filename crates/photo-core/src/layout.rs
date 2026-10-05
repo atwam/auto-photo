@@ -195,3 +195,45 @@ fn seal_panel(
         fy += small * 1.3;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::checks::Check;
+    use crate::spec::by_id;
+
+    #[test]
+    fn sheet_has_paper_size_and_exact_photo_cells() {
+        let spec = by_id("fr").unwrap();
+        let k = 300.0 / 25.4;
+        let photo = RgbImage::from_pixel(
+            (35.0 * k) as u32,
+            (45.0 * k) as u32,
+            image::Rgb([10, 200, 10]),
+        );
+        let report = Report {
+            spec: "fr",
+            status: Status::Pass,
+            checks: vec![Check {
+                id: "x",
+                label: "Head size",
+                status: Status::Pass,
+                detail: String::new(),
+            }],
+        };
+        for (paper, w, h) in [(Paper::Cm10x15, 1772, 1181), (Paper::In4x6, 1800, 1200)] {
+            let img = sheet(
+                &photo,
+                spec,
+                paper,
+                300.0,
+                &report,
+                &SheetText { date: "2026-10-05" },
+            );
+            assert_eq!((img.width(), img.height()), (w, h));
+            // Six green cells.
+            let green = img.pixels().filter(|p| p.0 == [10, 200, 10]).count();
+            assert_eq!(green, 6 * (photo.width() * photo.height()) as usize);
+        }
+    }
+}

@@ -93,7 +93,7 @@ fn run() -> Result<bool, Box<dyn std::error::Error>> {
     let mut all_ok = true;
 
     for input in &args.inputs {
-        let img = to_f32(&image::open(input)?.to_rgb8());
+        let img = to_f32(&open_oriented(input)?.to_rgb8());
         let a = match analyze(&models, &img) {
             Ok(a) => a,
             Err(e) => {
@@ -162,6 +162,18 @@ fn run() -> Result<bool, Box<dyn std::error::Error>> {
         all_ok &= report.status != Status::Fail;
     }
     Ok(all_ok)
+}
+
+/// Decode and apply the EXIF orientation (phones often store photos sideways).
+fn open_oriented(path: &Path) -> Result<image::DynamicImage, Box<dyn std::error::Error>> {
+    use image::ImageDecoder;
+    let mut decoder = image::ImageReader::open(path)?
+        .with_guessed_format()?
+        .into_decoder()?;
+    let orientation = decoder.orientation()?;
+    let mut img = image::DynamicImage::from_decoder(decoder)?;
+    img.apply_orientation(orientation);
+    Ok(img)
 }
 
 fn output_path(input: &Path, dir: Option<&Path>, suffix: &str) -> PathBuf {

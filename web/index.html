@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d10" />
+    <title>Auto Photo</title>
+    <meta name="description" content="Passport and ID photos made entirely on your device." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 30'%3E%3Crect x='2' y='2' width='20' height='26' rx='4' fill='none' stroke='%2349e3c4' stroke-width='3'/%3E%3Ccircle cx='12' cy='12' r='5' fill='%2349e3c4'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark"></span>auto<span class="dot">·</span>photo</div>
+      <div class="privacy" title="Your photo is processed in this browser tab and never uploaded.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3Z" /></svg>
+        On-device · nothing uploaded
+      </div>
+    </header>
+
+    <main>
+      <!-- 1. Start -->
+      <section id="screen-start" class="screen active">
+        <div class="hero">
+          <h1>Passport photos,<br /><em>made on your device.</em></h1>
+          <p class="lede">
+            Take or upload a portrait. We find your face, straighten and crop it to the official size,
+            fix the light and background, check it against the rules, and give you a print-ready sheet.
+          </p>
+          <div class="field-label">Document</div>
+          <div id="spec-picker" class="chips" role="radiogroup" aria-label="Photo specification"></div>
+          <div class="start-actions">
+            <button id="btn-camera" class="btn primary big">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+              Take a photo
+            </button>
+            <label class="btn ghost big">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v4h16v-4" /></svg>
+              Upload a photo
+              <input id="file-input" type="file" accept="image/*" hidden />
+            </label>
+          </div>
+          <div id="model-status" class="model-status"><span class="bar"><span></span></span><span class="txt">Preparing…</span></div>
+        </div>
+        <aside class="rules-card">
+          <h2>For a photo that passes</h2>
+          <ul class="rules">
+            <li><b>Neutral face</b>, mouth closed, no smile</li>
+            <li><b>Look straight</b> at the camera, head level</li>
+            <li><b>Eyes visible</b>: open, no glare, hair off the face</li>
+            <li><b>Plain, light background</b>, no shadows behind you</li>
+            <li><b>Even light</b> on the face, no hat or headwear (religious exceptions apply)</li>
+            <li><b>Camera at eye level</b>, about 1–1.5 m away; someone else should take it</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- 2. Camera -->
+      <section id="screen-camera" class="screen camera">
+        <video id="video" playsinline muted autoplay></video>
+        <svg id="oval" class="oval" aria-hidden="true"></svg>
+        <div id="ticker" class="ticker"></div>
+        <div class="cam-bar">
+          <button id="cam-cancel" class="icon-btn" aria-label="Cancel">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+          <button id="cam-shutter" class="shutter" aria-label="Take photo"><span></span></button>
+          <button id="cam-timer" class="icon-btn" aria-label="3 second timer" aria-pressed="false">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9 2h6" /></svg>
+          </button>
+          <button id="cam-flip" class="icon-btn" aria-label="Switch camera">
+            <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><path d="M9 13a3 3 0 0 1 5.2-2M15 13a3 3 0 0 1-5.2 2" /></svg>
+          </button>
+        </div>
+        <div id="countdown" class="countdown"></div>
+        <div id="flash" class="flash"></div>
+      </section>
+
+      <!-- 3. Processing -->
+      <section id="screen-process" class="screen process">
+        <div class="stage-wrap"><canvas id="stage"></canvas><div id="stage-caption" class="stage-caption"></div></div>
+        <ol id="steps" class="steps"></ol>
+      </section>
+
+      <!-- 4. Result -->
+      <section id="screen-result" class="screen result">
+        <div class="result-photo">
+          <div class="photo-frame">
+            <canvas id="preview"></canvas>
+            <canvas id="guides" class="guides"></canvas>
+          </div>
+          <div class="photo-tools">
+            <label class="toggle"><input id="show-guides" type="checkbox" /> Show guides</label>
+            <label class="toggle"><input id="show-original" type="checkbox" /> Compare original</label>
+          </div>
+        </div>
+        <div class="result-side">
+          <div id="verdict" class="verdict"></div>
+          <ul id="checks" class="checks"></ul>
+          <div id="spec-notes" class="notes"></div>
+
+          <details class="panel" open>
+            <summary>Background &amp; light</summary>
+            <div class="ctl"><label for="s-bg">Background replacement</label><input id="s-bg" type="range" min="0" max="1" step="0.01" value="1" /></div>
+            <div class="ctl"><span class="ctl-label">Background colour</span><div id="bg-swatches" class="swatches"></div></div>
+            <div class="ctl"><label for="s-bright">Brightness</label><input id="s-bright" type="range" min="-1" max="1" step="0.05" value="0" /></div>
+            <div class="ctl"><label for="s-wb">White balance correction</label><input id="s-wb" type="range" min="0" max="1" step="0.01" value="1" /></div>
+            <div class="ctl"><label for="s-exp">Auto exposure</label><input id="s-exp" type="range" min="0" max="1" step="0.01" value="1" /></div>
+          </details>
+          <details class="panel">
+            <summary>Framing</summary>
+            <div class="ctl"><label for="s-zoom">Head size</label><input id="s-zoom" type="range" min="0.9" max="1.1" step="0.005" value="1" /></div>
+            <div class="ctl"><label for="s-dy">Up / down</label><input id="s-dy" type="range" min="-4" max="4" step="0.1" value="0" /></div>
+            <div class="ctl"><label for="s-dx">Left / right</label><input id="s-dx" type="range" min="-4" max="4" step="0.1" value="0" /></div>
+            <div class="ctl"><label for="s-rot">Rotation</label><input id="s-rot" type="range" min="-6" max="6" step="0.1" value="0" /></div>
+          </details>
+          <button id="btn-reset" class="btn ghost small">Reset adjustments</button>
+
+          <div class="downloads">
+            <button id="dl-photo" class="btn primary">Download digital photo<small id="dl-photo-sub"></small></button>
+            <div class="sheet-row">
+              <button id="dl-sheet" class="btn primary">Download print sheet<small>6 photos · JPEG 300 dpi</small></button>
+              <div class="chips small" id="paper-picker" role="radiogroup" aria-label="Paper size">
+                <button class="chip on" data-paper="10x15">10×15 cm</button>
+                <button class="chip" data-paper="4x6">4×6 in</button>
+              </div>
+            </div>
+            <button id="btn-restart" class="btn ghost">Start over</button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

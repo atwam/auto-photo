@@ -19,11 +19,16 @@ pub struct Matte {
 impl Matte {
     /// Alpha at a source-image position; 0 outside the ROI.
     pub fn at_src(&self, p: Point) -> f32 {
+        self.try_at_src(p).unwrap_or(0.0)
+    }
+
+    /// Alpha at a source-image position, or `None` outside the matted region.
+    pub fn try_at_src(&self, p: Point) -> Option<f32> {
         let q = self.to_src.inverse().apply(p);
         if q.x < 0.0 || q.y < 0.0 || q.x > self.w as f32 || q.y > self.h as f32 {
-            return 0.0;
+            return None;
         }
-        sample_gray(&self.alpha, self.w, self.h, q.x, q.y)
+        Some(sample_gray(&self.alpha, self.w, self.h, q.x, q.y))
     }
 }
 

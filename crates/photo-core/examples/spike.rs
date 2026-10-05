@@ -7,11 +7,11 @@ use photo_core::{ModelBytes, Models, segment};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let modnet = std::env::var("MODNET").unwrap_or("models/modnet_quantized.onnx".into());
+    let modnet = std::env::var("MODNET").unwrap_or("models/modnet.onnx".into());
     let t = Instant::now();
     let models = Models::load(ModelBytes {
-        yunet: &std::fs::read("models/yunet_2023mar.onnx")?,
-        face_mesh: &std::fs::read("models/face_landmarks.onnx")?,
+        yunet: &std::fs::read("models/yunet.onnx")?,
+        face_mesh: &std::fs::read("models/face_mesh.onnx")?,
         modnet: &std::fs::read(&modnet)?,
     })?;
     println!("models loaded in {:?}", t.elapsed());

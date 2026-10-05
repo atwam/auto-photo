@@ -261,3 +261,79 @@ fn add(a: Point, b: Point) -> Point {
 fn scale(a: Point, k: f32) -> Point {
     Point::new(a.x * k, a.y * k)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spec::by_id;
+
+    /// Upright head: eyes at y=500, chin 300 px below, skull 280 px above.
+    fn head() -> Head {
+        Head {
+            chin: Point::new(500.0, 800.0),
+            eyes: Point::new(500.0, 500.0),
+            eye_r: Point::new(440.0, 500.0),
+            eye_l: Point::new(560.0, 500.0),
+            up: Point::new(0.0, -1.0),
+            roll: 0.0,
+            skull_top: Point::new(500.0, 220.0),
+            hair_top: Some(Point::new(500.0, 190.0)),
+            face_width: 300.0,
+            forehead: 140.0,
+        }
+    }
+
+    #[test]
+    fn places_head_at_target_size_and_centred() {
+        for spec in crate::spec::SPECS {
+            let p = place(&head(), spec, Adjust::default(), 1000, 1400);
+            assert!(
+                (p.head_mm - spec.head_target_mm()).abs() < 0.01,
+                "{}: {}",
+                spec.id,
+                p.head_mm
+            );
+            assert!(p.center_offset_mm.abs() < 0.01);
+            assert!(
+                p.eyes_from_bottom_mm >= spec.eyes_min_mm
+                    && p.eyes_from_bottom_mm <= spec.eyes_max_mm
+            );
+            assert_eq!(p.outside_fraction, 0.0);
+        }
+    }
+
+    #[test]
+    fn zoom_and_rotation_adjustments() {
+        let spec = by_id("icao").unwrap();
+        let p = place(
+            &head(),
+            spec,
+            Adjust {
+                zoom: 1.05,
+                ..Default::default()
+            },
+            1000,
+            1400,
+        );
+        assert!((p.head_mm - 34.0 * 1.05).abs() < 0.01);
+        // Rotating the frame keeps the head size (measured along the frame's vertical).
+        let p = place(
+            &head(),
+            spec,
+            Adjust {
+                rotate_deg: 3.0,
+                ..Default::default()
+            },
+            1000,
+            1400,
+        );
+        assert!((p.head_mm - 34.0 * 3f32.to_radians().cos()).abs() < 0.05);
+    }
+
+    #[test]
+    fn reports_frame_outside_photo() {
+        let spec = by_id("icao").unwrap();
+        let p = place(&head(), spec, Adjust::default(), 600, 900);
+        assert!(p.outside_fraction > 0.0);
+    }
+}

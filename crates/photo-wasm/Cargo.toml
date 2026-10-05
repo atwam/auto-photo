@@ -1,0 +1,18 @@
+[package]
+name = "photo-wasm"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+photo-core = { path = "../photo-core" }
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen = "=0.2.129"
+serde-wasm-bindgen = "0.6"
+getrandom = { version = "0.4", features = ["wasm_js"] }
+console_error_panic_hook = "0.1"
