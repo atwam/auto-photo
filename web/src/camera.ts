@@ -35,6 +35,8 @@ export class Camera {
   private hintEl = $<HTMLDivElement>("cam-hint");
   private stream: MediaStream | null = null;
   private facing: "user" | "environment" = "user";
+  /** Mirror the preview: true for front cameras (decided from the opened track). */
+  private mirrored = true;
   private timer = false;
   private tickTimer = 0;
   private active = false;
@@ -48,10 +50,7 @@ export class Camera {
   constructor(private detect: Detector) {
     $("cam-shutter").addEventListener("click", () => this.shoot());
     $("cam-cancel").addEventListener("click", () => this.finish(null));
-    $("cam-flip").addEventListener("click", () => {
-      this.facing = this.facing === "user" ? "environment" : "user";
-      void this.start();
-    });
+    $("cam-flip").addEventListener("click", () => this.flip().catch((e) => console.error("camera switch failed", e)));
     const t = $("cam-timer");
     t.addEventListener("click", () => {
       this.timer = !this.timer;
@@ -79,19 +78,60 @@ export class Camera {
     return new Promise((resolve) => (this.resolve = resolve));
   }
 
-  private async start() {
+  private async start(video: MediaTrackConstraints = { facingMode: this.facing }) {
     this.stopStream();
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("Camera not available. On a phone, open this page over HTTPS.");
     }
     this.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: this.facing, width: { ideal: 2560 }, height: { ideal: 2560 } },
+      video: { width: { ideal: 2560 }, height: { ideal: 2560 }, ...video },
       audio: false,
     });
+    this.applyTrack();
     this.video.srcObject = this.stream;
-    this.video.classList.toggle("mirror", this.facing === "user");
     await this.video.play().catch(() => {});
     this.drawOval();
+    // Only offer switching when there is something to switch to.
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+    $("cam-flip").style.visibility = cams.length > 1 ? "visible" : "hidden";
+  }
+
+  /** Read which camera actually opened and mirror only front cameras. */
+  private applyTrack() {
+    const track = this.stream?.getVideoTracks()[0];
+    if (!track) return;
+    const s = track.getSettings();
+    let facing = s.facingMode as string | undefined;
+    if (!facing) {
+      const label = track.label.toLowerCase();
+      if (/back|rear|environment|arrière|rück/.test(label)) facing = "environment";
+      else if (/front|user|facetime|avant|vorder/.test(label)) facing = "user";
+    }
+    // Laptops' webcams report nothing: treat them as front cameras.
+    this.facing = facing === "environment" ? "environment" : "user";
+    this.mirrored = this.facing === "user";
+    this.video.classList.toggle("mirror", this.mirrored);
+  }
+
+  /** Switch between front and back cameras. */
+  private async flip() {
+    const current = this.stream?.getVideoTracks()[0]?.getSettings().deviceId;
+    const want = this.facing === "user" ? "environment" : "user";
+    try {
+      // A hard constraint, so the browser can't hand back the same camera.
+      await this.start({ facingMode: { exact: want } });
+      if (this.stream?.getVideoTracks()[0]?.getSettings().deviceId !== current) return;
+    } catch {
+      /* no camera with that facing mode reported: fall back to device ids */
+    }
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+    if (cams.length < 2) {
+      await this.start({ deviceId: current ? { exact: current } : undefined });
+      return;
+    }
+    const i = cams.findIndex((d) => d.deviceId === current);
+    const next = cams[(i + 1) % cams.length];
+    await this.start({ deviceId: { exact: next.deviceId } });
   }
 
   private drawOval() {
@@ -143,7 +183,7 @@ export class Camera {
     const s = Math.max(W / frameW, H / frameH); // object-fit: cover
     const ox = (W - frameW * s) / 2, oy = (H - frameH * s) / 2;
     let sx = ox + x * s;
-    if (this.facing === "user") sx = W - sx; // mirrored preview
+    if (this.mirrored) sx = W - sx; // mirrored preview
     return { x: sx, y: oy + y * s, s };
   }
 
