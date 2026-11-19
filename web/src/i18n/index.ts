@@ -6,6 +6,8 @@ export { LANGS, type Key, type Lang } from "./messages";
 export { LANG_NAMES, langPath } from "./messages";
 
 const PREF = "lang";
+// Where the site is mounted ("/" or e.g. "/auto-photo/" on GitHub Pages).
+const BASE = import.meta.env.BASE_URL;
 let current: Lang = "en";
 
 export const lang = () => current;
@@ -26,7 +28,9 @@ export function num(v: number, digits = 1): string {
 }
 
 function fromPath(): Lang | null {
-  const seg = location.pathname.split("/").filter(Boolean)[0];
+  const path = location.pathname;
+  const rest = path.startsWith(BASE) ? path.slice(BASE.length) : path;
+  const seg = rest.split("/").filter(Boolean)[0];
   return (LANGS as readonly string[]).includes(seg) ? (seg as Lang) : null;
 }
 
@@ -51,7 +55,7 @@ export function initLang(): Lang {
       const nav = navigator.languages?.map((x) => x.slice(0, 2).toLowerCase()) ?? [];
       l = (nav.find((x) => (LANGS as readonly string[]).includes(x)) as Lang | undefined) ?? "en";
     }
-    if (l !== "en") history.replaceState(null, "", langPath(l) + location.search + location.hash);
+    if (l !== "en") history.replaceState(null, "", langPath(l, BASE) + location.search + location.hash);
   }
   current = l;
   applyStatic();
@@ -67,7 +71,7 @@ export function setLang(l: Lang) {
   }
   if (l === current) return;
   current = l;
-  history.pushState(null, "", langPath(l) + location.search + location.hash);
+  history.pushState(null, "", langPath(l, BASE) + location.search + location.hash);
   applyStatic();
   window.dispatchEvent(new Event("langchange"));
 }

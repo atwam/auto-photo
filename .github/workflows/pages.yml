@@ -1,0 +1,79 @@
+name: pages
+
+# Builds the wasm package, models and static site, then publishes web/dist to GitHub Pages.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: wasm-bindgen (must match Cargo.lock)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.129
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache downloaded models
+        uses: actions/cache@v4
+        with:
+          path: models/src
+          key: models-${{ hashFiles('scripts/fetch_models.sh') }}
+      - run: ./scripts/fetch_models.sh
+
+      - name: Tests
+        run: cargo test --workspace --exclude photo-wasm
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build site
+        working-directory: web
+        env:
+          # e.g. "/auto-photo/" and "https://<user>.github.io/auto-photo" (or "/" and the custom domain).
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          npm ci
+          npm run wasm
+          npm run build
+          rm -f dist/_headers  # Cloudflare/Netlify only; the CSP is also in a <meta> tag.
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

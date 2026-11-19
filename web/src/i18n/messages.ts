@@ -745,7 +745,7 @@ export function format(s: string, params: Record<string, string | number> = {}):
   return s.replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
 }
 
-/** Path prefix for a language ("/" for English, the default). */
-export function langPath(lang: Lang): string {
-  return lang === "en" ? "/" : `/${lang}/`;
+/** Path prefix for a language under `base` (base itself for English, the default). `base` ends with "/". */
+export function langPath(lang: Lang, base = "/"): string {
+  return lang === "en" ? base : `${base}${lang}/`;
 }

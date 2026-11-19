@@ -7,6 +7,8 @@ import { i18nPages } from "./i18n-plugin";
 const https = !!process.env.HTTPS;
 
 export default defineConfig({
+  // Public path the site is served from, e.g. BASE_PATH=/auto-photo/ for a GitHub Pages project site.
+  base: process.env.BASE_PATH ?? "/",
   plugins: [i18nPages(), ...(https ? [basicSsl()] : [])],
   worker: { format: "es" },
   build: { target: "es2022" },

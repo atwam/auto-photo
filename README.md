@@ -1,5 +1,7 @@
 # auto·photo
 
+**▶ Try it: <https://atwam.github.io/auto-photo/>** — runs entirely in your browser, nothing is uploaded.
+
 Passport / ID photos from any portrait, processed entirely on-device. It finds the face, straightens and
 crops it to the official size, fixes white balance, exposure and background, checks the result against
 the rules, and produces:
@@ -10,11 +12,27 @@ the rules, and produces:
 The same Rust core runs as a CLI and, compiled to WebAssembly, in the browser. Nothing is uploaded.
 The web UI is available in English, French, German and Spanish.
 
+## How it works
+
+```
+portrait (upload or camera)
+  → face detection (YuNet) → 478-point landmarks (MediaPipe) → person matte (MODNet)
+  → geometry: estimate crown & chin, level the eyes, crop/scale to the spec's head size
+  → tone: white balance, exposure, background replacement with hair-aware edges
+  → checks against the spec (head size, eye line, background, pose…)
+  → digital photo (JPEG) + print sheet (6 photos)
+```
+
+Everything above is a single Rust library (`crates/photo-core`), running ONNX models with
+[tract](https://github.com/sonos/tract). It's compiled to WebAssembly and run in a Web Worker behind a
+small TypeScript UI, so the static site needs no server: photos never leave the device. The same code
+also ships as a command-line tool.
+
 **Documentation:** [doc/](doc/README.md) — [wrap-up](doc/wrap-up.md) (state, architecture, decisions,
 backlog) · [development](doc/development.md) (tools, tuning, adding specs/languages) ·
 [deployment](doc/deployment.md) (how to put it online).
 
-## Quick start
+## Run it locally
 
 Prerequisites: [Rust](https://rustup.rs) (≥ 1.85), Node.js (≥ 20.19), Python 3.
 
@@ -79,8 +97,18 @@ The exit code is 2 when a photo fails a check.
 
 ## Web app
 
-Static site built with Vite (see [Quick start](#quick-start)); `npm run build` writes it to `web/dist`.
-After the first visit, models are cached by the browser. To host it, follow
+Static site built with Vite (see [Run it locally](#run-it-locally)); `npm run build` writes it to
+`web/dist`. After the first visit, models are cached by the browser.
+
+The public build is deployed to **GitHub Pages** by [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
+on every push to `main`: it builds the wasm package and models in CI, then publishes `web/dist`. Two
+build variables adapt the site to where it's hosted:
+
+- `BASE_PATH` — the path the site is served from (`/auto-photo/` on GitHub Pages, `/` on a domain root);
+- `SITE_URL` — the absolute URL of the English page, used for canonical/hreflang links, Open Graph /
+  Twitter cards, JSON-LD, `sitemap.xml` and `robots.txt`.
+
+Other hosts (e.g. Cloudflare Pages, which also applies `web/public/_headers`) are covered in
 [doc/deployment.md](doc/deployment.md).
 
 ## Specs
@@ -120,3 +148,13 @@ chin to the **crown** (top of the skull, not the hair), per ICAO, gov.uk and ANT
 English (`/`), French (`/fr/`), German (`/de/`) and Spanish (`/es/`). Strings live in
 `web/src/i18n/messages.ts`; the build pre-renders each language's `index.html` (set `SITE_URL` for
 canonical/hreflang links). On `/`, a saved choice or the browser language redirects client-side.
+
+## License
+
+auto·photo is **source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE.md):
+you may use, copy, modify and share it for personal, educational, research or other noncommercial
+purposes. Commercial use (e.g. offering it as a paid service or bundling it in a commercial product)
+is not permitted without a separate license from the author.
+
+Third-party components keep their own licenses: YuNet (MIT), MediaPipe Face Landmarker (Apache-2.0),
+MODNet (Apache-2.0) and the Inter font (SIL OFL 1.1).
